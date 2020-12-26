@@ -17604,7 +17604,6 @@ Low profile connectors, straight&lt;p&gt;
 <part name="GND1" library="supply1" deviceset="GND" device=""/>
 <part name="GND18" library="supply1" deviceset="GND" device=""/>
 <part name="SV2" library="con-harting-ml" deviceset="ML10" device="L"/>
-<part name="GND6" library="supply1" deviceset="GND" device=""/>
 <part name="JP3" library="pinhead" deviceset="PINHD-1X2" device="/90"/>
 <part name="GND10" library="supply1" deviceset="GND" device=""/>
 <part name="R12" library="rcl" deviceset="R-EU_" device="R0603"/>
@@ -17793,7 +17792,6 @@ Low profile connectors, straight&lt;p&gt;
 <instance part="GND1" gate="1" x="68.58" y="157.48"/>
 <instance part="GND18" gate="1" x="86.36" y="157.48"/>
 <instance part="SV2" gate="G$1" x="231.14" y="411.48"/>
-<instance part="GND6" gate="1" x="241.3" y="401.32"/>
 <instance part="JP3" gate="G$1" x="223.52" y="469.9" rot="MR0"/>
 <instance part="GND10" gate="1" x="231.14" y="462.28"/>
 <instance part="R12" gate="G$1" x="101.6" y="185.42" rot="R90"/>
@@ -18241,12 +18239,6 @@ Low profile connectors, straight&lt;p&gt;
 <pinref part="JP2" gate="A" pin="3"/>
 <wire x1="231.14" y1="444.5" x2="223.52" y2="444.5" width="0.1524" layer="91"/>
 <label x="223.52" y="444.5" size="1.4224" layer="95" rot="R180" xref="yes"/>
-</segment>
-<segment>
-<pinref part="SV2" gate="G$1" pin="1"/>
-<pinref part="GND6" gate="1" pin="GND"/>
-<wire x1="238.76" y1="406.4" x2="241.3" y2="406.4" width="0.1524" layer="91"/>
-<wire x1="241.3" y1="406.4" x2="241.3" y2="403.86" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="GND10" gate="1" pin="GND"/>
@@ -19683,6 +19675,16 @@ Low profile connectors, straight&lt;p&gt;
 <segment>
 <wire x1="238.76" y1="416.56" x2="246.38" y2="416.56" width="0.1524" layer="91"/>
 <pinref part="SV2" gate="G$1" pin="9"/>
+</segment>
+</net>
+<net name="UART_TX" class="0">
+<segment>
+<pinref part="IC3" gate="MCU" pin="PB10"/>
+<wire x1="170.18" y1="233.68" x2="177.8" y2="233.68" width="0.1524" layer="91"/>
+</segment>
+<segment>
+<pinref part="SV2" gate="G$1" pin="1"/>
+<wire x1="238.76" y1="406.4" x2="246.38" y2="406.4" width="0.1524" layer="91"/>
 </segment>
 </net>
 </nets>
