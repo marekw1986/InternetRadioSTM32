@@ -13,6 +13,7 @@
 #include "vs1003.h"
 #include "time.h"
 #include "stm32f1xx_hal.h"
+#include "ff.h"
 #include "main.h"
 
 #ifndef min
@@ -68,6 +69,14 @@ extern SPI_HandleTypeDef hspi1;
 #define SM_ADPCM            12
 #define SM_ADCPM_HP         13
 #define SM_LINE_IN          14
+
+
+uint8_t vsBuffer[2048];
+uint16_t vsBufferIndex = 0;
+uint16_t vsBufferSize = 0;
+
+FIL fsrc;
+DIR vsdir;
 
 // Register names
 
@@ -166,6 +175,16 @@ void VS1003_sdi_send_buffer(const uint8_t* data, int len) {
 
 /****************************************************************************/
 
+void VS1003_sdi_send_chunk(const uint8_t* data, int len) {
+    if (len > 32) return;
+    data_mode_on();
+    await_data_request();
+    while ( len-- ) VS1003_SPI_transfer(*data++);
+    data_mode_off();
+}
+
+/****************************************************************************/
+
 void VS1003_sdi_send_zeroes(int len) {
   int chunk_length;  
   data_mode_on();
@@ -177,6 +196,72 @@ void VS1003_sdi_send_zeroes(int len) {
   }
   data_mode_off();
 }
+
+/****************************************************************************/
+
+uint8_t VS1003_feed_from_buffer (void) {
+    uint8_t toSend = 0;
+    uint8_t *pointer;
+
+    if (vsBufferSize == 0) return 1;        // We return 1 to indicate that buffer is empty
+    if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return 0;
+
+    if (vsBufferSize >= 32) {
+        toSend = 32;
+    }
+    else {
+        toSend = vsBufferSize;
+    }
+
+    pointer = vsBuffer + vsBufferIndex;
+    VS1003_sdi_send_chunk(pointer, toSend);
+
+    vsBufferIndex += toSend;
+    vsBufferSize -= toSend;
+
+    return 0;
+}
+
+/****************************************************************************/
+
+void VS1003_handle (void) {
+    FRESULT res;
+    unsigned int br;
+
+    if (VS1003_feed_from_buffer()) {
+        res = f_read(&fsrc, vsBuffer, sizeof(vsBuffer), &br);
+        if (res == FR_OK) {
+            if (br == 0) {
+                VS1003_stopSong();
+                //VS1003_startSong();
+                res = f_lseek(&fsrc, 0);
+                if (res != FR_OK) printf("f_lseek ERROR\r\n");
+                else printf("f_lseek OK\r\n");
+            }
+            else {
+                vsBufferIndex = 0;
+                vsBufferSize = br;
+            }
+        }
+    }
+}
+
+/****************************************************************************/
+
+void VS1003_play (char* url) {
+    FRESULT res;
+
+    VS1003_stopSong();          //Stop song that is already playing
+
+    res = f_open(&fsrc, url, FA_READ);
+    if (res != FR_OK) {
+        printf("f_open error code: %i\r\n", res);
+        return;
+    }
+
+    VS1003_startSong();         //Start playing song
+}
+
 
 /****************************************************************************/
 
@@ -261,7 +346,10 @@ void VS1003_playChunk(const uint8_t* data, size_t len) {
 /****************************************************************************/
 
 void VS1003_stopSong(void) {
-  VS1003_sdi_send_zeroes(2048);
+	//VS1003_sdi_send_zeroes(2048);
+	memset(vsBuffer, 0x00, sizeof(vsBuffer));
+	vsBufferIndex = 0;
+	vsBufferSize = sizeof(vsBuffer);
 }
 
 /****************************************************************************/
@@ -327,24 +415,8 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
   }
   
   static uint8_t VS1003_SPI_transfer(uint8_t outB) {
-	uint8_t data;
+	uint8_t answer;
 
-	HAL_SPI_TransmitReceive(&hspi1, &outB, &data, 1, 100);
-    return data;
+	HAL_SPI_TransmitReceive(&hspi1, &outB, &answer, 1, HAL_MAX_DELAY);
+    return answer;
 }
-  
-
-/*
-void VS1003_SPI_conf(){
-	//SPI1 configuration     
-    SPI1CON = (_SPI1CON_ON_MASK  | _SPI1CON_CKE_MASK | _SPI1CON_MSTEN_MASK);    //8 bit master mode, CKE=1, CKP=0
-    SPI1BRG = (GetPeripheralClock()-1ul)/2ul/4000000;       //4MHz
-}
-
-uint8_t VS1003_SPIPutChar(uint8_t outB){
-    SPI1BUF = outB;
-    while (SPI1STATbits.SPITBF);
-    while (!SPI1STATbits.SPIRBF);
-    return SPI1BUF;
-}
-*/

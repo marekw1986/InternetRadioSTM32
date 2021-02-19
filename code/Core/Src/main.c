@@ -31,6 +31,7 @@
 #include <sys/unistd.h> // STDOUT_FILENO, STDERR_FILENO
 #include "common.h"
 #include "vs1003.h"
+#include "sd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -127,10 +128,11 @@ int main(void)
   HAL_GPIO_WritePin(TST_GPIO_Port, TST_Pin, 1);
   HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, 1);
 
-  res = f_mount(&FatFS, "0:", 0);
+  res = f_mount(&FatFS, "1:", 0);
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
+  VS1003_begin();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,6 +146,7 @@ int main(void)
 		usb_write();
 	}
 
+	MX_LWIP_Process();
     /* USER CODE END WHILE */
     MX_USB_HOST_Process();
 
@@ -165,10 +168,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.Prediv1Source = RCC_PREDIV1_SOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -193,7 +195,7 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USB;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_HSE_DIV128;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV3;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
@@ -216,6 +218,9 @@ static void MX_RTC_Init(void)
 
   /* USER CODE END RTC_Init 0 */
 
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef DateToUpdate = {0};
+
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
@@ -223,8 +228,32 @@ static void MX_RTC_Init(void)
   */
   hrtc.Instance = RTC;
   hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
-  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
+  hrtc.Init.OutPut = RTC_OUTPUTSOURCE_NONE;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  DateToUpdate.WeekDay = RTC_WEEKDAY_MONDAY;
+  DateToUpdate.Month = RTC_MONTH_JANUARY;
+  DateToUpdate.Date = 0x1;
+  DateToUpdate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD) != HAL_OK)
   {
     Error_Handler();
   }
@@ -472,7 +501,7 @@ void usb_write (void) {
     FRESULT res;
     FIL file;
 
-    res = f_open(&file, "0:/test.txt", (FA_OPEN_ALWAYS | FA_WRITE));
+    res = f_open(&file, "1:/test.txt", (FA_OPEN_ALWAYS | FA_WRITE));
     if (res != FR_OK) {
         printf("f_open error code: %i\r\n", res);
         return;
@@ -491,6 +520,7 @@ void usb_write (void) {
     f_puts("To jest test.\n", &file);
     f_close(&file);
 }
+
 /* USER CODE END 4 */
 
 /**
