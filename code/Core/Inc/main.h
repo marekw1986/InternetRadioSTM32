@@ -66,8 +66,8 @@ void Error_Handler(void);
 #define USB_OVERCURRENT_GPIO_Port GPIOA
 #define TST_Pin GPIO_PIN_10
 #define TST_GPIO_Port GPIOB
-#define FLASH_CS_Pin GPIO_PIN_15
-#define FLASH_CS_GPIO_Port GPIOA
+#define SPIRAM_CS_Pin GPIO_PIN_15
+#define SPIRAM_CS_GPIO_Port GPIOA
 #define SD_PRESENT_Pin GPIO_PIN_2
 #define SD_PRESENT_GPIO_Port GPIOD
 #define VS_XDCS_Pin GPIO_PIN_6

@@ -36,6 +36,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "ff_gen_drv.h"
+#include "common.h"
 #include "sd.h"
 
 /* Private typedef -----------------------------------------------------------*/

@@ -34,7 +34,6 @@
 /* Exported constants --------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 extern Diskio_drvTypeDef  USER_Driver;
-
 /* USER CODE END 0 */
 
 #ifdef __cplusplus

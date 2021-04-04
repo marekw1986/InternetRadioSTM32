@@ -31,7 +31,9 @@
 #include <sys/unistd.h> // STDOUT_FILENO, STDERR_FILENO
 #include "common.h"
 #include "vs1003.h"
+#include "user_diskio.h"
 #include "sd.h"
+#include "spiram.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -88,6 +90,7 @@ void usb_write (void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  uint8_t buffer[64];
   uint32_t timer = 0;
   FRESULT res;
   /* USER CODE END 1 */
@@ -120,7 +123,7 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim4);									//Required for delay_us
-  HAL_GPIO_WritePin(FLASH_CS_GPIO_Port, FLASH_CS_Pin, 1);
+  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
   HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 1);
   HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 0);
   HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
@@ -132,7 +135,11 @@ int main(void)
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
+  spiram_clear();
+
   VS1003_begin();
+  VS1003_setVolume(0x00);
+  VS1003_play("1:/test.mp3");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -143,9 +150,20 @@ int main(void)
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
-		usb_write();
-	}
 
+		/*
+		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
+		printf("Writing data to spiram\r\n");
+		spiram_writearray(0x00000000, buffer, strlen((char *)buffer));
+		memset((char *)buffer, 0x00, sizeof(buffer));
+		spiram_readarray(0x00, buffer, sizeof(buffer));
+		printf("Data from spiram: %s\r\n", buffer);
+		*/
+
+		//usb_write();
+	}
+	//disk_timerproc();
+	VS1003_handle();
 	MX_LWIP_Process();
     /* USER CODE END WHILE */
     MX_USB_HOST_Process();
@@ -439,7 +457,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOB, TST_Pin|VS_XDCS_Pin|VS_XCS_Pin|SD_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(FLASH_CS_GPIO_Port, FLASH_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pins : VS_XRST_Pin USB_EN_Pin */
   GPIO_InitStruct.Pin = VS_XRST_Pin|USB_EN_Pin;
@@ -461,12 +479,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : FLASH_CS_Pin */
-  GPIO_InitStruct.Pin = FLASH_CS_Pin;
+  /*Configure GPIO pin : SPIRAM_CS_Pin */
+  GPIO_InitStruct.Pin = SPIRAM_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(FLASH_CS_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(SPIRAM_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SD_PRESENT_Pin */
   GPIO_InitStruct.Pin = SD_PRESENT_Pin;
