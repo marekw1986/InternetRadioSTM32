@@ -90,9 +90,9 @@ void usb_write (void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint8_t buffer[64];
   uint32_t timer = 0;
   FRESULT res;
+  uint8_t buffer[64];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -156,13 +156,14 @@ int main(void)
 		printf("Writing data to spiram\r\n");
 		spiram_writearray(0x00000000, buffer, strlen((char *)buffer));
 		memset((char *)buffer, 0x00, sizeof(buffer));
-		spiram_readarray(0x00, buffer, sizeof(buffer));
+		spiram_readarray(0x00000000, buffer, sizeof(buffer));
 		printf("Data from spiram: %s\r\n", buffer);
 		*/
 
 		//usb_write();
 	}
 	//disk_timerproc();
+
 	VS1003_handle();
 	MX_LWIP_Process();
     /* USER CODE END WHILE */
@@ -454,10 +455,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, VS_XRST_Pin|USB_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, TST_Pin|VS_XDCS_Pin|VS_XCS_Pin|SD_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, TST_Pin|VS_XDCS_Pin|VS_XCS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : VS_XRST_Pin USB_EN_Pin */
   GPIO_InitStruct.Pin = VS_XRST_Pin|USB_EN_Pin;
@@ -472,8 +476,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USB_OVERCURRENT_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : TST_Pin VS_XDCS_Pin VS_XCS_Pin SD_CS_Pin */
-  GPIO_InitStruct.Pin = TST_Pin|VS_XDCS_Pin|VS_XCS_Pin|SD_CS_Pin;
+  /*Configure GPIO pins : TST_Pin VS_XDCS_Pin VS_XCS_Pin */
+  GPIO_InitStruct.Pin = TST_Pin|VS_XDCS_Pin|VS_XCS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -482,8 +486,8 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : SPIRAM_CS_Pin */
   GPIO_InitStruct.Pin = SPIRAM_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(SPIRAM_CS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SD_PRESENT_Pin */
@@ -497,6 +501,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(VS_DREQ_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SD_CS_Pin */
+  GPIO_InitStruct.Pin = SD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
 
 }
 

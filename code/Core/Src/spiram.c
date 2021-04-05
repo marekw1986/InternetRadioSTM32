@@ -19,130 +19,80 @@
 #define BYTE_MODE   0x00    // Byte mode (read/write one byte at a time)
 #define SEQ_MODE 	0x40    // Sequential mode (read/write blocks of memory)
 
+#define enableRAM()		HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0)
+#define disableRAM()	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1)
+
 extern SPI_HandleTypeDef hspi3;
 
 static void spiram_setmode(uint8_t mode ) {
-	uint8_t tmp;
+	uint8_t tmp[2] = {WRMR, mode};
 
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
-	tmp = WRMR;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	HAL_SPI_Transmit(&hspi3, &mode, 1, HAL_MAX_DELAY);
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 2, HAL_MAX_DELAY);
+	disableRAM();
 }
 
 
 void spiram_clear(void) {
-	uint8_t tmp;
+	uint8_t tmp[4] = {WRITE, 0x00, 0x00, 0x00};
 	int i;
 
 	spiram_setmode(SEQ_MODE);
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
 
-	tmp = WRITE;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	tmp = 0x00;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
 	for (i=0; i<0x20000; i++) {
-		HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
+		HAL_SPI_Transmit(&hspi3, &tmp[1], 1, HAL_MAX_DELAY);
 	}
-
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
-
+	disableRAM();
 }
 
 
 void spiram_writebyte(uint32_t address, uint8_t data) {
-	uint8_t tmp;
+	uint8_t tmp[4] = {WRITE, (uint8_t)(address >> 16), (uint8_t)(address >> 8), (uint8_t)address};
 
 	spiram_setmode(BYTE_MODE);
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
 
-	tmp = WRITE;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	tmp = (uint8_t)(address >> 16);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)(address >> 8);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)address;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
 	HAL_SPI_Transmit(&hspi3, &data, 1, HAL_MAX_DELAY);
-
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
+	disableRAM();
 }
 
 
 uint8_t spiram_readbyte(uint32_t address) {
-	uint8_t tmp;
+	uint8_t tmp[4] = {READ, (uint8_t)(address >> 16), (uint8_t)(address >> 8), (uint8_t)address};
 
 	spiram_setmode(BYTE_MODE);
 
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
+	HAL_SPI_Receive(&hspi3, &tmp[0], 1, HAL_MAX_DELAY);
+	disableRAM();
 
-	tmp = READ;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	tmp = (uint8_t)(address >> 16);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)(address >> 8);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)address;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	HAL_SPI_Receive(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
-	return tmp;
+	return tmp[0];
 }
 
 
 void spiram_writearray(uint32_t address, uint8_t *data, uint16_t len) {
-	uint8_t tmp;
+	uint8_t tmp[4] = {WRITE, (uint8_t)(address >> 16), (uint8_t)(address >> 8), (uint8_t)address};
 
 	spiram_setmode(SEQ_MODE);
 
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
-
-	tmp = WRITE;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	tmp = (uint8_t)(address >> 16);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)(address >> 8);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)address;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	HAL_SPI_Receive(&hspi3, data, len, HAL_MAX_DELAY);
-
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
+	HAL_SPI_Transmit(&hspi3, data, len, HAL_MAX_DELAY);
+	disableRAM();
 }
 
 
 void spiram_readarray(uint32_t address, uint8_t *data, uint16_t len) {
-	uint8_t tmp;
+	uint8_t tmp[4] = {READ, (uint8_t)(address >> 16), (uint8_t)(address >> 8), (uint8_t)address};
 
 	spiram_setmode(SEQ_MODE);
 
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 0);
-
-	tmp = READ;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
-	tmp = (uint8_t)(address >> 16);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)(address >> 8);
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-	tmp = (uint8_t)address;
-	HAL_SPI_Transmit(&hspi3, &tmp, 1, HAL_MAX_DELAY);
-
+	enableRAM();
+	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
 	HAL_SPI_Receive(&hspi3, data, len, HAL_MAX_DELAY);
-
-	HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
+	disableRAM();
 }

@@ -71,9 +71,11 @@ extern SPI_HandleTypeDef hspi1;
 #define SM_LINE_IN          14
 
 
-uint8_t vsBuffer[2048];
-uint16_t vsBufferIndex = 0;
-uint16_t vsBufferSize = 0;
+#define VS_BUFFER_SIZE  1024
+
+static uint8_t vsBuffer[2][VS_BUFFER_SIZE];
+static uint8_t active_buffer = 0x01;
+static uint8_t new_data_needed = 0;
 
 FIL fsrc;
 DIR vsdir;
@@ -200,50 +202,58 @@ void VS1003_sdi_send_zeroes(int len) {
 /****************************************************************************/
 
 uint8_t VS1003_feed_from_buffer (void) {
-    uint8_t toSend = 0;
-    uint8_t *pointer;
+    static uint16_t shift = 0;
 
-    if (vsBufferSize == 0) return 1;        // We return 1 to indicate that buffer is empty
     if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return 0;
 
-    if (vsBufferSize >= 32) {
-        toSend = 32;
+    VS1003_sdi_send_chunk(&vsBuffer[active_buffer][shift], 32);
+    shift += 32;
+    if (shift >= VS_BUFFER_SIZE) {
+        shift = 0;
+        active_buffer ^= 0x01;
+        new_data_needed = 1;
     }
-    else {
-        toSend = vsBufferSize;
-    }
-
-    pointer = vsBuffer + vsBufferIndex;
-    VS1003_sdi_send_chunk(pointer, toSend);
-
-    vsBufferIndex += toSend;
-    vsBufferSize -= toSend;
 
     return 0;
 }
 
 /****************************************************************************/
 
-void VS1003_handle (void) {
+void handle_file_reading (void) {
     FRESULT res;
     unsigned int br;
+    static uint16_t shift = 0;
 
-    if (VS1003_feed_from_buffer()) {
-        res = f_read(&fsrc, vsBuffer, sizeof(vsBuffer), &br);
+    if (new_data_needed) {
+        //new_data_needed = 0;
+
+        res = f_read(&fsrc, &vsBuffer[active_buffer ^ 0x01][shift], 512, &br);
         if (res == FR_OK) {
-            if (br == 0) {
+            printf("%d bytes of data loaded. Buffer %d. Shift %d\r\n", br, (active_buffer ^ 0x01), shift);
+            shift += 512;
+            if (shift >= VS_BUFFER_SIZE) {
+                shift = 0;
+                new_data_needed = 0;
+            }
+
+            if (br < 512) {
                 VS1003_stopSong();
-                //VS1003_startSong();
+                VS1003_startSong();
                 res = f_lseek(&fsrc, 0);
                 if (res != FR_OK) printf("f_lseek ERROR\r\n");
                 else printf("f_lseek OK\r\n");
+                //VS1003_play_next_audio_file_from_directory();
             }
-            else {
-                vsBufferIndex = 0;
-                vsBufferSize = br;
-            }
+
         }
+
     }
+}
+
+
+void VS1003_handle (void) {
+    handle_file_reading();
+    VS1003_feed_from_buffer();
 }
 
 /****************************************************************************/
@@ -348,8 +358,6 @@ void VS1003_playChunk(const uint8_t* data, size_t len) {
 void VS1003_stopSong(void) {
 	//VS1003_sdi_send_zeroes(2048);
 	memset(vsBuffer, 0x00, sizeof(vsBuffer));
-	vsBufferIndex = 0;
-	vsBufferSize = sizeof(vsBuffer);
 }
 
 /****************************************************************************/

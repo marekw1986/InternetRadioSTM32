@@ -65,7 +65,7 @@ static unsigned char cache[CACHESIZE];
 
 //macros
 #define disableSD() HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 1); clockSPI()
-#define enableSD() HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 0)
+#define enableSD() HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 0);
 #define readSPI() writeSPI( 0xFF)
 #define clockSPI() writeSPI( 0xFF)
 
@@ -281,7 +281,7 @@ initMedia() function with the last segment: */
     if (HAL_SPI_DeInit(&hspi3) != HAL_OK) {
     	printf("SD: SPI3 deinit error\r\n");
     }
-	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
     if (HAL_SPI_Init(&hspi3) != HAL_OK) {
     	printf("SD: SPI3 init error\r\n");
     }
@@ -357,12 +357,14 @@ int sd_readSECTOR( LBA a, char *p) {
 		else {
 			printf("readSECTOR %ld R_TIMEOUT return -2\r\n",a);
 			readlock=0;
+			disableSD();
             return 0;
         }
     } // command accepted
 	else {
 		printf("readSECTOR  %ld cmd rejected return -1\r\n",a);
 		readlock=0;	
+		disableSD();
         return 0;
 	}
     // 5. remember to disable the card
