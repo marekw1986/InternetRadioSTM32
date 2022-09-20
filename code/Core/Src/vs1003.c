@@ -723,7 +723,7 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
           }
           else {
               if (is_audio_file(info.fname)) {
-                  snprintf(buf, sizeof(buf)-1, "2:/%s", info.fname);      //TODO: handle different drives
+                  snprintf(buf, sizeof(buf)-1, "%s/%s", uri.server, info.fname);
                   VS1003_soft_stop();
                   VS1003_play_file(buf);
                   return;
@@ -783,6 +783,7 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
           return;
       }
       dir_flag = TRUE;
+      strncpy(uri.server, url, sizeof(uri.server)-1);		//we use uri.server to store current directory path
       VS1003_play_next_audio_file_from_directory();
   }
 
