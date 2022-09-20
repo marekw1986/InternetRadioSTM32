@@ -139,7 +139,7 @@ int main(void)
 
   VS1003_begin();
   VS1003_setVolume(0x00);
-  VS1003_play("1:/test.mp3");
+  VS1003_play_dir("1:/");
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -27,14 +27,18 @@ void VS1003_sdi_send_buffer(const uint8_t* data, int len);
 void VS1003_sdi_send_zeroes(int len);
 uint8_t VS1003_feed_from_buffer (void);
 void VS1003_handle (void);
-void VS1003_play (char* url);
 void VS1003_setVolume(uint8_t vol);
-void VS1003_startSong(void);
 void VS1003_playChunk(const uint8_t* data, size_t len);
-void VS1003_stopSong(void);
 void VS1003_print_byte_register(uint8_t reg);
 void VS1003_printDetails(void);
 void VS1003_loadUserCode(const uint16_t* buf, size_t len);
+void VS1003_play_next_audio_file_from_directory (void);
+void VS1003_play_http_stream(const char* url);
+void VS1003_play_next_http_stream_from_list(void);
+void VS1003_play_file (char* url);
+void VS1003_stop(void);
+void VS1003_setLoop(uint8_t val);
+uint8_t VS1003_getLoop(void);
 
 
 #ifdef	__cplusplus
