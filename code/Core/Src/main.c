@@ -92,7 +92,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
   uint32_t timer = 0;
   FRESULT res;
-  uint8_t buffer[64];
+  //uint8_t buffer[64];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
