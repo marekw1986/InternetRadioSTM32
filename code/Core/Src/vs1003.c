@@ -14,6 +14,7 @@
 #include "time.h"
 #include "stm32f1xx_hal.h"
 #include "lwip/tcp.h"
+#include "lwip/dns.h"
 #include "lwip.h"
 #include "ff.h"
 #include "common.h"
@@ -106,6 +107,8 @@ static uint8_t dir_flag = FALSE;
 typedef enum {
     STREAM_HOME = 0,
     STREAM_HTTP_BEGIN,
+	STREAM_HTTP_WAIT_DNS,
+	STREAM_HTTP_OBTAIN_SOCKET,
     STREAM_HTTP_SOCKET_OBTAINED,
     STREAM_HTTP_SEND_REQUEST,
     STREAM_HTTP_PROCESS_HEADER,
@@ -177,7 +180,7 @@ static inline void data_mode_off(void);
 static uint8_t VS1003_SPI_transfer(uint8_t outB);
 static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
-
+static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 
 /****************************************************************************/
 
@@ -305,6 +308,8 @@ void handle_file_reading (void) {
 
 void VS1003_handle(void) {
 	static uint32_t Timer;
+	static ip_addr_t server_addr;
+	err_t res;
 
 	switch(StreamState)
 	{
@@ -312,14 +317,46 @@ void VS1003_handle(void) {
             //nothing to do here, just wait
             break;
 
-        case STREAM_HTTP_BEGIN:
+		case STREAM_HTTP_BEGIN:
+			//We start with getting address from DNS
+			res = dns_gethostbyname(uri.server, &server_addr, dns_cbk, (void*)&server_addr);
+			switch (res) {
+				case ERR_OK:
+					//We already have valid address - proceed
+					printf("DNS address already resolved\r\n");
+					StreamState = STREAM_HTTP_OBTAIN_SOCKET;
+					break;
+				case ERR_INPROGRESS:
+					//We need to resolve address - wait
+					printf("Resolving DNS\r\n");
+					StreamState = STREAM_HTTP_WAIT_DNS;
+					Timer = millis();
+					break;
+				case ERR_ARG:
+				default:
+					//Resolve error - end here
+					printf("DNS resolve error\r\n");
+					StreamState = STREAM_HOME;
+					break;
+			}
+			break;
+
+		case STREAM_HTTP_WAIT_DNS:
+			if ((uint32_t)(millis()-Timer) > 5000) {
+				printf("DNS timeout\r\n");
+				StreamState = STREAM_HTTP_RECONNECT_WAIT;
+				ReconnectStrategy = RECONNECT_WAIT_LONG;
+			}
+			break;
+
+        case STREAM_HTTP_OBTAIN_SOCKET:
 			// Create new socket
             //VS_Socket = TCPOpen((DWORD)&uri.server[0], TCP_OPEN_RAM_HOST, uri.port, TCP_PURPOSE_GENERIC_TCP_CLIENT);
             VS_Socket = tcp_new();
 
 			if(VS_Socket == NULL) {
                 StreamState=STREAM_HTTP_RECONNECT_WAIT;
-                ReconnectStrategy = RECONNECT_WAIT_SHORT;
+                ReconnectStrategy = RECONNECT_WAIT_LONG;
 				break;
             }
 
@@ -703,6 +740,15 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
           VS1003_stopPlaying();
           StreamState = STREAM_HOME;
       }
+  }
+
+  static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
+	  ip_addr_t* dst = (ip_addr_t*)callback_arg;
+
+	  if (StreamState != STREAM_HTTP_WAIT_DNS) return;
+	  printf("DNS %s resolved\r\n", name);
+	  *dst = *ipaddr;
+	  StreamState = STREAM_HTTP_OBTAIN_SOCKET;
   }
 
 
