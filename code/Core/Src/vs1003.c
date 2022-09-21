@@ -13,6 +13,8 @@
 #include "vs1003.h"
 #include "time.h"
 #include "stm32f1xx_hal.h"
+#include "lwip/tcp.h"
+#include "lwip.h"
 #include "ff.h"
 #include "common.h"
 #include "main.h"
@@ -24,9 +26,6 @@
 extern SPI_HandleTypeDef hspi1;
 
 #define vs1003_chunk_size 32
-
-#define INVALID_SOCKET 0
-int VS_Socket = INVALID_SOCKET;		//TEMP
 
 /****************************************************************************/
 
@@ -97,6 +96,8 @@ static uint8_t new_data_needed = 0;
 
 FIL fsrc;
 DIR vsdir;
+
+struct tcp_pcb* VS_Socket;
 
 static uri_t uri;
 static uint8_t loop_flag = FALSE;
@@ -312,12 +313,11 @@ void VS1003_handle(void) {
             break;
 
         case STREAM_HTTP_BEGIN:
-			// Connect a socket to the remote TCP server
+			// Create new socket
             //VS_Socket = TCPOpen((DWORD)&uri.server[0], TCP_OPEN_RAM_HOST, uri.port, TCP_PURPOSE_GENERIC_TCP_CLIENT);
+            VS_Socket = tcp_new();
 
-			// Abort operation if no TCP socket of type TCP_PURPOSE_GENERIC_TCP_CLIENT is available
-			// If this ever happens, you need to go add one to TCPIPConfig.h
-			if(VS_Socket == INVALID_SOCKET) {
+			if(VS_Socket == NULL) {
                 StreamState=STREAM_HTTP_RECONNECT_WAIT;
                 ReconnectStrategy = RECONNECT_WAIT_SHORT;
 				break;
@@ -504,7 +504,7 @@ void VS1003_handle(void) {
 			// Close the socket so it can be used by other modules
 			// For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
 			//TCPDisconnect(VS_Socket);
-			VS_Socket = INVALID_SOCKET;
+			//VS_Socket = INVALID_SOCKET;
             VS1003_stopPlaying();
             switch(ReconnectStrategy) {
                 case DO_NOT_RECONNECT:
