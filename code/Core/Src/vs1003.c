@@ -110,6 +110,7 @@ typedef enum {
 	STREAM_HTTP_WAIT_DNS,
 	STREAM_HTTP_OBTAIN_SOCKET,
     STREAM_HTTP_SOCKET_OBTAINED,
+	STREAM_HTTP_CONNECT_WAIT,
     STREAM_HTTP_SEND_REQUEST,
     STREAM_HTTP_PROCESS_HEADER,
     STREAM_HTTP_GET_DATA,
@@ -181,6 +182,8 @@ static uint8_t VS1003_SPI_transfer(uint8_t outB);
 static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
 static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
+static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err);
+static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 
 /****************************************************************************/
 
@@ -272,40 +275,6 @@ uint8_t VS1003_feed_from_buffer (void) {
 
 /****************************************************************************/
 
-/*
-void handle_file_reading (void) {
-    FRESULT res;
-    unsigned int br;
-    static uint16_t shift = 0;
-
-    if (new_data_needed) {
-        //new_data_needed = 0;
-
-        res = f_read(&fsrc, &vsBuffer[active_buffer ^ 0x01][shift], 512, &br);
-        if (res == FR_OK) {
-            printf("%d bytes of data loaded. Buffer %d. Shift %d\r\n", br, (active_buffer ^ 0x01), shift);
-            shift += 512;
-            if (shift >= VS_BUFFER_SIZE) {
-                shift = 0;
-                new_data_needed = 0;
-            }
-
-            if (br < 512) {
-                VS1003_stopSong();
-                VS1003_startSong();
-                res = f_lseek(&fsrc, 0);
-                if (res != FR_OK) printf("f_lseek ERROR\r\n");
-                else printf("f_lseek OK\r\n");
-                //VS1003_play_next_audio_file_from_directory();
-            }
-
-        }
-
-    }
-}
-*/
-
-
 void VS1003_handle(void) {
 	static uint32_t Timer;
 	static ip_addr_t server_addr;
@@ -365,52 +334,53 @@ void VS1003_handle(void) {
 			break;
 
 		case STREAM_HTTP_SOCKET_OBTAINED:
-			// Wait for the remote server to accept our connection request
-			//if(!TCPIsConnected(VS_Socket))
-			{
-				// Time out if too much time is spent in this state
-				if((uint32_t)(millis()-Timer) > 5000)
-				{
-					// Close the socket so it can be used by other modules
-					//TCPDisconnect(VS_Socket);
-					//VS_Socket = INVALID_SOCKET;
-					//StreamState = STREAM_HTTP_BEGIN;     //was StreamState--
-                    //ReconnectStrategy = DO_NOT_RECONNECT;
-                    //TODO limit number of reconnections or repair differently
-                    //If we stuck here, it breaks state machine!!!!!
-				}
+			// Connect to temote server
+			// TODO: register error callback!
+			res = tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
+			if (res != ERR_OK) {
+				StreamState = STREAM_HTTP_RECONNECT_WAIT;
+				ReconnectStrategy = RECONNECT_WAIT_LONG;
+				printf("Can't connect to server\r\n");
 				break;
 			}
-            StreamState = STREAM_HTTP_SEND_REQUEST;
+
+            StreamState = STREAM_HTTP_CONNECT_WAIT;
 			Timer = millis();
             break;
 
+		case STREAM_HTTP_CONNECT_WAIT:
+			if ((uint32_t)(millis()-Timer) > 5000) {
+				StreamState = STREAM_HTTP_CLOSE;
+				ReconnectStrategy = RECONNECT_WAIT_LONG;
+				printf("Connect timeout\r\n");
+			}
+			break;
+
         case STREAM_HTTP_SEND_REQUEST:
-			// Make certain the socket can be written to
-			//if( TCPIsPutReady(VS_Socket) < (49u + strlen(uri.file) + strlen(uri.server)) ) {
-                if ( (uint32_t)(millis()-Timer) > 5000 ) {
-                    StreamState = STREAM_HTTP_CLOSE;
-                    ReconnectStrategy = RECONNECT_WAIT_LONG;
-                }
-				break;
-            //}
+			// Place the application protocol data into the transmit buffer.
 
-			// Place the application protocol data into the transmit buffer.  For this example, we are connected to an HTTP server, so we'll send an HTTP GET request.
-			//TCPPutROMString(VS_Socket, (ROM BYTE*)"GET ");
-			//TCPPutString(VS_Socket, uri.file);
-			//TCPPutROMString(VS_Socket, (ROM BYTE*)" HTTP/1.0\r\nHost: ");
-			//TCPPutString(VS_Socket, uri.server);
-			//TCPPutROMString(VS_Socket, (ROM BYTE*)"\r\nConnection: keep-alive\r\n\r\n");
+        	tcp_write(VS_Socket, (const void*)"GET ", 4, 0);
+			tcp_write(VS_Socket, (const void*)uri.file, strlen(uri.file), 0);
+			tcp_write(VS_Socket, (const void*)" HTTP/1.0\r\nHost: ", 17, 0);
+			tcp_write(VS_Socket, (const void*)uri.server, strlen(uri.server), 0);
+			tcp_write(VS_Socket, (const void*)"\r\nConnection: keep-alive\r\n\r\n", 28, 0);
 
-            //printf("Sending headers\r\n");
+            printf("Sending headers\r\n");
 
-            //TCPWasReset(VS_Socket);
 			// Send the packet
-			//TCPFlush(VS_Socket);
-            Timer = millis();
-            vsBuffer_shift = 0;
-			StreamState = STREAM_HTTP_PROCESS_HEADER;
-            memset(vsBuffer, 0x00, sizeof(vsBuffer));
+			res = tcp_output(VS_Socket);
+			if (res == ERR_OK) {
+				Timer = millis();
+				vsBuffer_shift = 0;
+				StreamState = STREAM_HTTP_PROCESS_HEADER;
+				tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
+				memset(vsBuffer, 0x00, sizeof(vsBuffer));
+			}
+			else {
+				StreamState = STREAM_HTTP_CLOSE;
+				ReconnectStrategy = RECONNECT_WAIT_LONG;
+				printf("Can't send HTTP header, reconnecting\r\n");
+			}
 			break;
 
         case STREAM_HTTP_PROCESS_HEADER:
@@ -684,187 +654,206 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
 }
 
 
-  static inline void await_data_request(void) {
-    while ( !HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin) );
-  }
-
-  static inline void control_mode_on(void) {
-    HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
-    HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 0);
-  }
-
-  static inline void control_mode_off(void) {
-	  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-  }
-
-  static inline void data_mode_on(void) {
-    HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-    HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 0);
-  }
-
-  static inline void data_mode_off(void) {
-	  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
-  }
-  
-  static void VS1003_startPlaying(void) {
-    VS1003_sdi_send_zeroes(10);
-  }
-
-  static void VS1003_stopPlaying(void) {
-      VS1003_sdi_send_zeroes(2048);
-      memset(vsBuffer, 0x00, sizeof(vsBuffer));
-  }
-
-  static uint8_t VS1003_SPI_transfer(uint8_t outB) {
-	uint8_t answer;
-
-	HAL_SPI_TransmitReceive(&hspi1, &outB, &answer, 1, HAL_MAX_DELAY);
-    return answer;
+static inline void await_data_request(void) {
+while ( !HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin) );
 }
 
-  static uint8_t is_audio_file (char* name) {
-      if (strstr(name, ".MP3") || strstr(name, ".WMA") || strstr(name, ".MID") || strstr(name, ".mp3") || strstr(name, ".wma") || strstr(name, ".mid")) {
-          return 1;
-      }
-      return 0;
-   }
+static inline void control_mode_on(void) {
+HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
+HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 0);
+}
 
-  /* This is needed for directory playing - it stops playing
-   and closes current file, but doesn't close directory and
-   leaves flag unchanged */
+static inline void control_mode_off(void) {
+  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
+}
 
-  static void VS1003_soft_stop (void) {
-      //Can be used only if it is actually playing from file
-      if (StreamState == STREAM_FILE_GET_DATA) {
-          f_close(&fsrc);
-          VS1003_stopPlaying();
-          StreamState = STREAM_HOME;
-      }
+static inline void data_mode_on(void) {
+HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
+HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 0);
+}
+
+static inline void data_mode_off(void) {
+  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
+}
+
+static void VS1003_startPlaying(void) {
+VS1003_sdi_send_zeroes(10);
+}
+
+static void VS1003_stopPlaying(void) {
+  VS1003_sdi_send_zeroes(2048);
+  memset(vsBuffer, 0x00, sizeof(vsBuffer));
+}
+
+static uint8_t VS1003_SPI_transfer(uint8_t outB) {
+uint8_t answer;
+
+HAL_SPI_TransmitReceive(&hspi1, &outB, &answer, 1, HAL_MAX_DELAY);
+return answer;
+}
+
+static uint8_t is_audio_file (char* name) {
+  if (strstr(name, ".MP3") || strstr(name, ".WMA") || strstr(name, ".MID") || strstr(name, ".mp3") || strstr(name, ".wma") || strstr(name, ".mid")) {
+	  return 1;
+  }
+  return 0;
+}
+
+/* This is needed for directory playing - it stops playing
+and closes current file, but doesn't close directory and
+leaves flag unchanged */
+
+static void VS1003_soft_stop (void) {
+  //Can be used only if it is actually playing from file
+  if (StreamState == STREAM_FILE_GET_DATA) {
+	  f_close(&fsrc);
+	  VS1003_stopPlaying();
+	  StreamState = STREAM_HOME;
+  }
+}
+
+static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
+  ip_addr_t* dst = (ip_addr_t*)callback_arg;
+
+  if (StreamState != STREAM_HTTP_WAIT_DNS) return;
+  printf("DNS %s resolved\r\n", name);
+  *dst = *ipaddr;
+  StreamState = STREAM_HTTP_OBTAIN_SOCKET;
+}
+
+static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
+	if (StreamState != STREAM_HTTP_CONNECT_WAIT) {
+		return ERR_OK;	//What value should be used?
+	}
+	printf("Connected successfully\r\n");
+	StreamState = STREAM_HTTP_SEND_REQUEST;
+
+	return ERR_OK;
+}
+
+static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
+	if (p == NULL) {
+		//connection lost
+
+	}
+	//handle received data here
+	tcp_recved(VS_Socket, p->tot_len);
+}
+
+
+void VS1003_play_next_audio_file_from_directory (void) {
+  FILINFO info;
+  char buf[257];
+
+  if(!dir_flag) return;       //currently we are not playing directory
+
+  while (f_readdir(&vsdir, &info) == FR_OK) {
+	  if (!info.fname[0]) {           //Empty string - end of directory
+		  if (loop_flag) {
+			  f_rewinddir(&vsdir);
+		  }
+		  else {
+			  VS1003_stop();          //It handles closing dir and resetting dir_flag
+		  }
+	  }
+	  else {
+		  if (is_audio_file(info.fname)) {
+			  snprintf(buf, sizeof(buf)-1, "%s/%s", uri.server, info.fname);
+			  VS1003_soft_stop();
+			  VS1003_play_file(buf);
+			  return;
+		  }
+	  }
   }
 
-  static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
-	  ip_addr_t* dst = (ip_addr_t*)callback_arg;
+  return;
+}
 
-	  if (StreamState != STREAM_HTTP_WAIT_DNS) return;
-	  printf("DNS %s resolved\r\n", name);
-	  *dst = *ipaddr;
-	  StreamState = STREAM_HTTP_OBTAIN_SOCKET;
+/*Always call VS1003_stop() before calling that function*/
+void VS1003_play_http_stream(const char* url) {
+  if (StreamState != STREAM_HOME) return;
+
+  if (parse_url(url, strlen(url), &uri)) {
+	  StreamState = STREAM_HTTP_BEGIN;
+	  ReconnectStrategy = RECONNECT_WAIT_SHORT;
+  }
+  else {
+	  StreamState = STREAM_HOME;
+	  ReconnectStrategy = DO_NOT_RECONNECT;
+  }
+  VS1003_startPlaying();
+}
+
+void VS1003_play_next_http_stream_from_list(void) {
+  static int ind = 0;
+
+  ind++;
+  if (ind >= sizeof(internet_radios)/sizeof(const char*)) ind=0;
+  VS1003_stop();
+  VS1003_play_http_stream(internet_radios[ind]);
+}
+
+/*Always call VS1003_stop() or VS1003_soft_stop() before calling that function*/
+void VS1003_play_file (char* url) {
+  if (StreamState != STREAM_HOME) return;
+
+  FRESULT res = f_open(&fsrc, url, FA_READ);
+  if (res != FR_OK) {
+	  printf("f_open error code: %i\r\n", res);
+	  StreamState = STREAM_HOME;
+	  return;
   }
 
+  StreamState = STREAM_FILE_GET_DATA;
+  VS1003_startPlaying();         //Start playing song
+}
 
-  void VS1003_play_next_audio_file_from_directory (void) {
-      FILINFO info;
-      char buf[257];
 
-      if(!dir_flag) return;       //currently we are not playing directory
+void VS1003_play_dir (const char* url) {
+  FRESULT res;
 
-      while (f_readdir(&vsdir, &info) == FR_OK) {
-          if (!info.fname[0]) {           //Empty string - end of directory
-              if (loop_flag) {
-                  f_rewinddir(&vsdir);
-              }
-              else {
-                  VS1003_stop();          //It handles closing dir and resetting dir_flag
-              }
-          }
-          else {
-              if (is_audio_file(info.fname)) {
-                  snprintf(buf, sizeof(buf)-1, "%s/%s", uri.server, info.fname);
-                  VS1003_soft_stop();
-                  VS1003_play_file(buf);
-                  return;
-              }
-          }
-      }
-
-      return;
+  res = f_opendir(&vsdir, url);
+  if (res != FR_OK) {
+	  printf("f_opendir error code: %i\r\n", res);
+	  return;
   }
+  dir_flag = TRUE;
+  strncpy(uri.server, url, sizeof(uri.server)-1);		//we use uri.server to store current directory path
+  VS1003_play_next_audio_file_from_directory();
+}
 
-  /*Always call VS1003_stop() before calling that function*/
-  void VS1003_play_http_stream(const char* url) {
-      if (StreamState != STREAM_HOME) return;
-
-      if (parse_url(url, strlen(url), &uri)) {
-          StreamState = STREAM_HTTP_BEGIN;
-          ReconnectStrategy = RECONNECT_WAIT_SHORT;
-      }
-      else {
-          StreamState = STREAM_HOME;
-          ReconnectStrategy = DO_NOT_RECONNECT;
-      }
-      VS1003_startPlaying();
+void VS1003_stop(void) {
+  //Can be stopped only if it is actually playing
+  switch (StreamState) {
+	  case STREAM_HTTP_BEGIN:
+	  case STREAM_HTTP_SOCKET_OBTAINED:
+	  case STREAM_HTTP_SEND_REQUEST:
+	  case STREAM_HTTP_PROCESS_HEADER:
+	  case STREAM_HTTP_GET_DATA:
+		  //if(VS_Socket != INVALID_SOCKET) {
+		  //    TCPDisconnect(VS_Socket);
+		  //    VS_Socket = INVALID_SOCKET;
+		  //}
+		  break;
+	  case STREAM_FILE_GET_DATA:
+		  f_close(&fsrc);
+		  if (dir_flag) {
+			  f_closedir(&vsdir);
+			  dir_flag = FALSE;
+		  }
+		  break;
+	  default:
+		  return;
+		  break;
   }
+  VS1003_stopPlaying();
+  StreamState = STREAM_HOME;
+}
 
-  void VS1003_play_next_http_stream_from_list(void) {
-      static int ind = 0;
+void VS1003_setLoop(uint8_t val) {
+  loop_flag = val;
+}
 
-      ind++;
-      if (ind >= sizeof(internet_radios)/sizeof(const char*)) ind=0;
-      VS1003_stop();
-      VS1003_play_http_stream(internet_radios[ind]);
-  }
-
-  /*Always call VS1003_stop() or VS1003_soft_stop() before calling that function*/
-  void VS1003_play_file (char* url) {
-      if (StreamState != STREAM_HOME) return;
-
-      FRESULT res = f_open(&fsrc, url, FA_READ);
-      if (res != FR_OK) {
-          printf("f_open error code: %i\r\n", res);
-          StreamState = STREAM_HOME;
-          return;
-      }
-
-      StreamState = STREAM_FILE_GET_DATA;
-      VS1003_startPlaying();         //Start playing song
-  }
-
-
-  void VS1003_play_dir (const char* url) {
-      FRESULT res;
-
-      res = f_opendir(&vsdir, url);
-      if (res != FR_OK) {
-          printf("f_opendir error code: %i\r\n", res);
-          return;
-      }
-      dir_flag = TRUE;
-      strncpy(uri.server, url, sizeof(uri.server)-1);		//we use uri.server to store current directory path
-      VS1003_play_next_audio_file_from_directory();
-  }
-
-  void VS1003_stop(void) {
-      //Can be stopped only if it is actually playing
-      switch (StreamState) {
-          case STREAM_HTTP_BEGIN:
-          case STREAM_HTTP_SOCKET_OBTAINED:
-          case STREAM_HTTP_SEND_REQUEST:
-          case STREAM_HTTP_PROCESS_HEADER:
-          case STREAM_HTTP_GET_DATA:
-              //if(VS_Socket != INVALID_SOCKET) {
-              //    TCPDisconnect(VS_Socket);
-              //    VS_Socket = INVALID_SOCKET;
-              //}
-              break;
-          case STREAM_FILE_GET_DATA:
-              f_close(&fsrc);
-              if (dir_flag) {
-                  f_closedir(&vsdir);
-                  dir_flag = FALSE;
-              }
-              break;
-          default:
-              return;
-              break;
-      }
-      VS1003_stopPlaying();
-      StreamState = STREAM_HOME;
-  }
-
-  void VS1003_setLoop(uint8_t val) {
-      loop_flag = val;
-  }
-
-  uint8_t VS1003_getLoop(void) {
-      return loop_flag;
-  }
+uint8_t VS1003_getLoop(void) {
+  return loop_flag;
+}
