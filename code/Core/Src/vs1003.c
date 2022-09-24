@@ -747,7 +747,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			ptr = p;
 			do {
 				w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
-				memcpy(&vsBuffer[active_buffer][vsBuffer_shift], ptr->payload, w);
+				memcpy(&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], ptr->payload, w);
 				vsBuffer_shift += w;
 				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
 					vsBuffer_shift = 0;
