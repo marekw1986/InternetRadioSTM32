@@ -427,12 +427,12 @@ void VS1003_handle(void) {
 //                }
 //            }
 //
-//            if ( (uint32_t)(millis()-args.timer) > 1000) {
-//                //There was no data in 1 second - reconnect
-//                printf("Internet radio: no header timeout - reseting\r\n");
-//                ReconnectStrategy = RECONNECT_WAIT_LONG;
-//                StreamState = STREAM_HTTP_CLOSE;
-//            }
+            if ( (uint32_t)(millis()-args.timer) > 1000) {
+                //There was no data in 1 second - reconnect
+                printf("Internet radio: no header timeout - reseting\r\n");
+                ReconnectStrategy = RECONNECT_WAIT_LONG;
+                StreamState = STREAM_HTTP_CLOSE;
+            }
             break;
 
 		case STREAM_HTTP_GET_DATA:
@@ -785,6 +785,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			break;
 	}
 	tcp_recved(VS_Socket, p->tot_len);
+	pbuf_free(p);	//TEST
 	return ERR_OK;
 }
 
