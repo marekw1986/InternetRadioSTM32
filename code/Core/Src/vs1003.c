@@ -334,6 +334,7 @@ void VS1003_handle(void) {
 				break;
             }
 
+			tcp_arg(VS_Socket, (void*)&args);
 			StreamState=STREAM_HTTP_SOCKET_OBTAINED;
 			args.timer = millis();
 			break;
@@ -500,8 +501,10 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_CLOSE:
 			// Close the socket so it can be used by other modules
 			// For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
-			//TCPDisconnect(VS_Socket);
-			//VS_Socket = INVALID_SOCKET;
+			res = tcp_close(VS_Socket);
+			if (res != ERR_OK) break;
+			VS_Socket = NULL;
+			printf("Successfully disconnected");
             VS1003_stopPlaying();
             switch(ReconnectStrategy) {
                 case DO_NOT_RECONNECT:
@@ -724,6 +727,7 @@ static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
 
 static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
 	uint16_t w = 0;
+	StreamArgs_t* args = (StreamArgs_t*)arg;
 
 	printf("Recv cbk, state is %d\r\n", StreamState);
 
@@ -759,9 +763,11 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
                         break;
                     case HTTP_HEADER_OK:
                         printf("It is 200 OK\r\n");
-                        //Timer = millis();			//TODO: Fix it
-                        StreamState = STREAM_HTTP_GET_DATA;
-                        VS1003_startPlaying();
+                        args->timer = millis();
+                        //StreamState = STREAM_HTTP_GET_DATA;
+                        //VS1003_startPlaying();
+                        StreamState = STREAM_HTTP_CLOSE;	//TEMP
+                        ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
                         break;
                     case HTTP_HEADER_REDIRECTED:
                         printf("Stream redirected\r\n");
