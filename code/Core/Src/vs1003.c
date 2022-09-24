@@ -409,10 +409,10 @@ void VS1003_handle(void) {
 	                    case HTTP_HEADER_OK:
 	                        printf("It is 200 OK\r\n");
 	                        args.timer = millis();
-	                        //StreamState = STREAM_HTTP_GET_DATA;
-	                        //VS1003_startPlaying();
-	                        StreamState = STREAM_HTTP_CLOSE;	//TEMP
-	                        ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
+	                        StreamState = STREAM_HTTP_GET_DATA;
+	                        VS1003_startPlaying();
+	                       // StreamState = STREAM_HTTP_CLOSE;	//TEMP
+	                        //ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
 	                        break;
 	                    case HTTP_HEADER_REDIRECTED:
 	                        printf("Stream redirected\r\n");
@@ -441,8 +441,12 @@ void VS1003_handle(void) {
                 ReconnectStrategy = RECONNECT_WAIT_LONG;
                 StreamState = STREAM_HTTP_CLOSE;
             }
-            if (new_data_needed) {
-
+            if (new_data_needed && args.data_ready) {
+            	tcp_recved(VS_Socket, VS_BUFFER_SIZE);
+            	pbuf_free(args.p);
+            	args.timer = millis();
+            	args.data_ready = FALSE;
+            	new_data_needed = FALSE;
             }
             VS1003_feed_from_buffer();
 			break;
@@ -735,12 +739,24 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 					vsBuffer_shift = 0;
 				}
 				vsBuffer[0][vsBuffer_shift] = '\0';
-				if (ptr->next) { ptr = ptr->next; }
-				else { break; }
-			} while (ptr->len < p->tot_len);
+				ptr = ptr->next;
+			} while (ptr);
 			args->data_ready = TRUE;
 			break;
 		case STREAM_HTTP_GET_DATA:
+			ptr = p;
+			do {
+				w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
+				memcpy(&vsBuffer[active_buffer][vsBuffer_shift], ptr->payload, w);
+				vsBuffer_shift += w;
+				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+					vsBuffer_shift = 0;
+					args->data_ready = TRUE;
+					args->p = p;
+					return ERR_OK;
+				}
+				ptr = ptr->next;
+			} while (ptr);
 			break;
 		default:
 			break;
