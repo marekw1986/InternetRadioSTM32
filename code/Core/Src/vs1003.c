@@ -133,6 +133,7 @@ static ReconnectStrategy_t ReconnectStrategy = DO_NOT_RECONNECT;
 typedef struct {
 	uint32_t timer;
 	struct pbuf* p;
+	uint8_t data_ready;
 } StreamArgs_t;
 
 // Register names
@@ -281,7 +282,7 @@ uint8_t VS1003_feed_from_buffer (void) {
 /****************************************************************************/
 
 void VS1003_handle(void) {
-	static StreamArgs_t args = {0, NULL};
+	static StreamArgs_t args = {0, NULL, FALSE};
 	static ip_addr_t server_addr;
 	err_t res;
 
@@ -377,6 +378,7 @@ void VS1003_handle(void) {
 			res = tcp_output(VS_Socket);
 			if (res == ERR_OK) {
 				args.timer = millis();
+				args.data_ready = FALSE;
 				vsBuffer_shift = 0;
 				StreamState = STREAM_HTTP_PROCESS_HEADER;
 				tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
@@ -391,42 +393,39 @@ void VS1003_handle(void) {
 			break;
 
         case STREAM_HTTP_PROCESS_HEADER:;
+        	if (args.data_ready) {
+				char* tok = strstr((char*)vsBuffer[0], "\r\n\r\n");
+	            if (tok) {
+	                tok[2] = '\0';
+	                tok[3] = '\0';
+	                printf((const char*)vsBuffer[0]);
+	                http_res_t http_result = parse_http_headers((char*)vsBuffer[0], strlen((char*)vsBuffer[0]), &uri);
+	                switch (http_result) {
+	                    case HTTP_HEADER_ERROR:
+	                        printf("Parsing headers error\r\n");
+	                        ReconnectStrategy = RECONNECT_WAIT_LONG;
+	                        StreamState = STREAM_HTTP_CLOSE;
+	                        break;
+	                    case HTTP_HEADER_OK:
+	                        printf("It is 200 OK\r\n");
+	                        args.timer = millis();
+	                        //StreamState = STREAM_HTTP_GET_DATA;
+	                        //VS1003_startPlaying();
+	                        StreamState = STREAM_HTTP_CLOSE;	//TEMP
+	                        ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
+	                        break;
+	                    case HTTP_HEADER_REDIRECTED:
+	                        printf("Stream redirected\r\n");
+	                        ReconnectStrategy = RECONNECT_IMMEDIATELY;
+	                        StreamState = STREAM_HTTP_CLOSE;
+	                        break;
+	                    default:
+	                        break;
+	                }
+	            }
+	            args.data_ready = FALSE;
+        	}
 
-            //uint16_t to_load = TCPIsGetReady(VS_Socket);
-        	uint16_t w; // = TCPGetArray(VS_Socket, &vsBuffer[0][vsBuffer_shift], (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift)));
-//            vsBuffer_shift += w;
-//            if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-//                vsBuffer_shift = 0;
-//            }
-//            vsBuffer[0][vsBuffer_shift] = '\0';
-//            char* tok = strstr((char*)vsBuffer[0], "\r\n\r\n");
-//            if (tok) {
-//                tok[2] = '\0';
-//                tok[3] = '\0';
-//                //printf(vsBuffer[0]);
-//                http_res_t http_result = parse_http_headers((char*)vsBuffer[0], strlen((char*)vsBuffer[0]), &uri);
-//                switch (http_result) {
-//                    case HTTP_HEADER_ERROR:
-//                        printf("Parsing headers error\r\n");
-//                        ReconnectStrategy = RECONNECT_WAIT_LONG;
-//                        StreamState = STREAM_HTTP_CLOSE;
-//                        break;
-//                    case HTTP_HEADER_OK:
-//                        printf("It is 200 OK\r\n");
-//                        args.timer = millis();
-//                        StreamState = STREAM_HTTP_GET_DATA;
-//                        VS1003_startPlaying();
-//                        break;
-//                    case HTTP_HEADER_REDIRECTED:
-//                        printf("Stream redirected\r\n");
-//                        ReconnectStrategy = RECONNECT_IMMEDIATELY;
-//                        StreamState = STREAM_HTTP_CLOSE;
-//                        break;
-//                    default:
-//                        break;
-//                }
-//            }
-//
             if ( (uint32_t)(millis()-args.timer) > 1000) {
                 //There was no data in 1 second - reconnect
                 printf("Internet radio: no header timeout - reseting\r\n");
@@ -436,31 +435,15 @@ void VS1003_handle(void) {
             break;
 
 		case STREAM_HTTP_GET_DATA:
-
             if ( (uint32_t)(millis()-args.timer) > 5000) {
                 //There was no data in 5 seconds - reconnect
                 printf("Internet radio: no new data timeout - reseting\r\n");
                 ReconnectStrategy = RECONNECT_WAIT_LONG;
                 StreamState = STREAM_HTTP_CLOSE;
             }
-
             if (new_data_needed) {
-			// Get count of RX bytes waiting
-                //to_load = TCPIsGetReady(VS_Socket);
-            //    w = TCPGetArray(VS_Socket, &vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift)));
-                //printf("Received %d bytes from audo stream, Saved in %d buffer at shift %d\r\n", w, (active_buffer ^ 0x01), shift);
-                if (w) {
-                    //We still receiving new data, so update timer to not reconnect
-                	args.timer = millis();
-                }
-                vsBuffer_shift += w;
-                if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-                    vsBuffer_shift = 0;
-                    new_data_needed = 0;
-                }
-                //printf("New shjift is %d. There is %s need for new data\r\n", shift, new_data_needed ? "still a" : "no");
-            }
 
+            }
             VS1003_feed_from_buffer();
 			break;
 
@@ -728,6 +711,7 @@ static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
 static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
 	uint16_t w = 0;
 	StreamArgs_t* args = (StreamArgs_t*)arg;
+	struct pbuf* ptr;
 
 	printf("Recv cbk, state is %d\r\n", StreamState);
 
@@ -742,42 +726,19 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 	switch(StreamState) {
 		case STREAM_HTTP_PROCESS_HEADER:
 			// = TCPGetArray(VS_Socket, &vsBuffer[0][vsBuffer_shift], (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift)));
-			w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= p->len) ? p->len : (VS_BUFFER_SIZE-vsBuffer_shift));
-			memcpy(&vsBuffer[0][vsBuffer_shift], p->payload, w);
-			vsBuffer_shift += w;
-            if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-                vsBuffer_shift = 0;
-            }
-            vsBuffer[0][vsBuffer_shift] = '\0';
-            char* tok = strstr((char*)vsBuffer[0], "\r\n\r\n");
-            if (tok) {
-                tok[2] = '\0';
-                tok[3] = '\0';
-                printf(vsBuffer[0]);
-                http_res_t http_result = parse_http_headers((char*)vsBuffer[0], strlen((char*)vsBuffer[0]), &uri);
-                switch (http_result) {
-                    case HTTP_HEADER_ERROR:
-                        printf("Parsing headers error\r\n");
-                        ReconnectStrategy = RECONNECT_WAIT_LONG;
-                        StreamState = STREAM_HTTP_CLOSE;
-                        break;
-                    case HTTP_HEADER_OK:
-                        printf("It is 200 OK\r\n");
-                        args->timer = millis();
-                        //StreamState = STREAM_HTTP_GET_DATA;
-                        //VS1003_startPlaying();
-                        StreamState = STREAM_HTTP_CLOSE;	//TEMP
-                        ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
-                        break;
-                    case HTTP_HEADER_REDIRECTED:
-                        printf("Stream redirected\r\n");
-                        ReconnectStrategy = RECONNECT_IMMEDIATELY;
-                        StreamState = STREAM_HTTP_CLOSE;
-                        break;
-                    default:
-                        break;
-                }
-            }
+			ptr = p;
+			do {
+				w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
+				memcpy(&vsBuffer[0][vsBuffer_shift], ptr->payload, w);
+				vsBuffer_shift += w;
+				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+					vsBuffer_shift = 0;
+				}
+				vsBuffer[0][vsBuffer_shift] = '\0';
+				if (ptr->next) { ptr = ptr->next; }
+				else { break; }
+			} while (ptr->len < p->tot_len);
+			args->data_ready = TRUE;
 			break;
 		case STREAM_HTTP_GET_DATA:
 			break;
@@ -792,7 +753,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 
 void VS1003_play_next_audio_file_from_directory (void) {
   FILINFO info;
-  char buf[257];
+  char buf[300];
 
   if(!dir_flag) return;       //currently we are not playing directory
 
