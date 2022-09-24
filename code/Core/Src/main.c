@@ -91,6 +91,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   uint32_t timer = 0;
+  uint32_t one_time_timer = 0;
   FRESULT res;
   //uint8_t buffer[64];
   /* USER CODE END 1 */
@@ -140,7 +141,8 @@ int main(void)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  VS1003_play_dir("1:/test");
+  //VS1003_play_dir("1:/test");
+  one_time_timer = millis();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -162,6 +164,12 @@ int main(void)
 		*/
 
 		//usb_write();
+	}
+
+	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
+		one_time_timer = 0;
+		printf("Connecting to radio");
+		VS1003_play_next_http_stream_from_list();
 	}
 	//disk_timerproc();
 
