@@ -504,7 +504,7 @@ void VS1003_handle(void) {
 			res = tcp_close(VS_Socket);
 			if (res != ERR_OK) break;
 			VS_Socket = NULL;
-			printf("Successfully disconnected");
+			printf("Successfully disconnected\r\n");
             VS1003_stopPlaying();
             switch(ReconnectStrategy) {
                 case DO_NOT_RECONNECT:
@@ -733,7 +733,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 
 	if (p == NULL) {
 		//connection lost
-		StreamState = STREAM_HTTP_RECONNECT_WAIT;		//STREAM_HTTP_CLOSE?
+		StreamState = STREAM_HTTP_CLOSE;		//STREAM_HTTP_RECONNECT_WAIT?
 		ReconnectStrategy = RECONNECT_WAIT_LONG;
 		printf("Server disconnected - reconnecting\r\n");
 		return ERR_OK;
