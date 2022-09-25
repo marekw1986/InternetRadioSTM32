@@ -714,6 +714,7 @@ static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
 
 static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
 	uint16_t w = 0;
+	uint16_t to_load = 0;
 	StreamArgs_t* args = (StreamArgs_t*)arg;
 	struct pbuf* ptr;
 
@@ -730,38 +731,28 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 	switch(StreamState) {
 		case STREAM_HTTP_PROCESS_HEADER:
 			// = TCPGetArray(VS_Socket, &vsBuffer[0][vsBuffer_shift], (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift)));
-			ptr = p;
-			do {
-				w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
-				memcpy(&vsBuffer[0][vsBuffer_shift], ptr->payload, w);
-				vsBuffer_shift += w;
-				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-					vsBuffer_shift = 0;
-				}
-				vsBuffer[0][vsBuffer_shift] = '\0';
-				ptr = ptr->next;
-			} while (ptr);
+			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift));
+			w = pbuf_copy_partial(p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
+			vsBuffer_shift += w;
+			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+				vsBuffer_shift = 0;
+			}
+			vsBuffer[0][vsBuffer_shift] = '\0';
 			args->data_ready = TRUE;
 			break;
 		case STREAM_HTTP_GET_DATA:
-			ptr = p;
-			do {
-				w = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
-				memcpy(&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], ptr->payload, w);
-				vsBuffer_shift += w;
-				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-					vsBuffer_shift = 0;
-					args->data_ready = TRUE;
-					args->p = p;
-					return ERR_OK;
-				}
-				ptr = ptr->next;
-			} while (ptr);
+			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
+			w = pbuf_copy_partial(p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
+			vsBuffer_shift += w;
+			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+				vsBuffer_shift = 0;
+				args->data_ready = TRUE;
+			}
 			break;
 		default:
 			break;
 	}
-	tcp_recved(VS_Socket, p->tot_len);
+	tcp_recved(VS_Socket, w);
 	pbuf_free(p);	//TEST
 	return ERR_OK;
 }
