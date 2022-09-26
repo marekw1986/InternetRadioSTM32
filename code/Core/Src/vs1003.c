@@ -17,6 +17,7 @@
 #include "lwip/dns.h"
 #include "lwip.h"
 #include "ff.h"
+#include "spiram.h"
 #include "common.h"
 #include "main.h"
 
@@ -284,6 +285,8 @@ uint8_t VS1003_feed_from_buffer (void) {
 void VS1003_handle(void) {
 	static StreamArgs_t args = {0, NULL, FALSE};
 	static ip_addr_t server_addr;
+	uint16_t w = 0;
+	uint16_t to_load = 0;
 	err_t res;
 
 	switch(StreamState)
@@ -394,6 +397,15 @@ void VS1003_handle(void) {
 
         case STREAM_HTTP_PROCESS_HEADER:;
         	if (args.data_ready) {
+    			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= args.p->tot_len) ? args.p->tot_len : (VS_BUFFER_SIZE-vsBuffer_shift));
+    			w = pbuf_copy_partial(args.p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
+    			//tcp_recved(VS_Socket, w);
+    			//pbuf_free(args.p);
+    			vsBuffer_shift += w;
+    			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+    				vsBuffer_shift = 0;
+    			}
+    			vsBuffer[0][vsBuffer_shift] = '\0';
 				char* tok = strstr((char*)vsBuffer[0], "\r\n\r\n");
 	            if (tok) {
 	                tok[2] = '\0';
@@ -409,6 +421,7 @@ void VS1003_handle(void) {
 	                    case HTTP_HEADER_OK:
 	                        printf("It is 200 OK\r\n");
 	                        args.timer = millis();
+	                        vsBuffer_shift = 0;
 	                        StreamState = STREAM_HTTP_GET_DATA;
 	                        VS1003_startPlaying();
 	                       // StreamState = STREAM_HTTP_CLOSE;	//TEMP
@@ -435,20 +448,27 @@ void VS1003_handle(void) {
             break;
 
 		case STREAM_HTTP_GET_DATA:
+            if (new_data_needed) {
+    			//to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= args.p->tot_len) ? args.p->tot_len : (VS_BUFFER_SIZE-vsBuffer_shift));
+    			//w = pbuf_copy_partial(args.p, (void*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load, 0);
+            	// Load data from SPI ring buffer here
+            	args.timer = millis();
+    			if (w > 0) {
+    				args.timer = millis();
+    				vsBuffer_shift += w;
+    				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+    					vsBuffer_shift = 0;
+    					new_data_needed = FALSE;
+    				}
+    			}
+            }
+            VS1003_feed_from_buffer();
             if ( (uint32_t)(millis()-args.timer) > 5000) {
                 //There was no data in 5 seconds - reconnect
                 printf("Internet radio: no new data timeout - reseting\r\n");
                 ReconnectStrategy = RECONNECT_WAIT_LONG;
                 StreamState = STREAM_HTTP_CLOSE;
             }
-            if (new_data_needed && args.data_ready) {
-            	tcp_recved(VS_Socket, VS_BUFFER_SIZE);
-            	pbuf_free(args.p);
-            	args.timer = millis();
-            	args.data_ready = FALSE;
-            	new_data_needed = FALSE;
-            }
-            VS1003_feed_from_buffer();
 			break;
 
         case STREAM_FILE_GET_DATA:
@@ -713,12 +733,9 @@ static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
 }
 
 static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
-	uint16_t w = 0;
-	uint16_t to_load = 0;
 	StreamArgs_t* args = (StreamArgs_t*)arg;
-	struct pbuf* ptr;
 
-	printf("Recv cbk, state is %d\r\n", StreamState);
+	//printf("Recv cbk, state is %d\r\n", StreamState);
 
 	if (p == NULL) {
 		//connection lost
@@ -727,33 +744,26 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 		printf("Server disconnected - reconnecting\r\n");
 		return ERR_OK;
 	}
-	//handle received data here
-	switch(StreamState) {
-		case STREAM_HTTP_PROCESS_HEADER:
-			// = TCPGetArray(VS_Socket, &vsBuffer[0][vsBuffer_shift], (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift)));
-			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= to_load) ? to_load : (VS_BUFFER_SIZE-vsBuffer_shift));
-			w = pbuf_copy_partial(p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
-			vsBuffer_shift += w;
-			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-				vsBuffer_shift = 0;
-			}
-			vsBuffer[0][vsBuffer_shift] = '\0';
-			args->data_ready = TRUE;
-			break;
-		case STREAM_HTTP_GET_DATA:
-			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= ptr->len) ? ptr->len : (VS_BUFFER_SIZE-vsBuffer_shift));
-			w = pbuf_copy_partial(p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
-			vsBuffer_shift += w;
-			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-				vsBuffer_shift = 0;
-				args->data_ready = TRUE;
-			}
-			break;
-		default:
-			break;
+
+	if (StreamState == STREAM_HTTP_PROCESS_HEADER)  {
+		args->data_ready = TRUE;
+		args->p = p;
+		VS1003_handle();	// call it to parse data right away
+		//return ERR_INPROGRESS;
 	}
-	tcp_recved(VS_Socket, w);
-	pbuf_free(p);	//TEST
+	else if (StreamState == STREAM_HTTP_GET_DATA) {
+		uint8_t* tmpbuf = (uint8_t*)malloc(p->tot_len);
+		if (tmpbuf) {
+			pbuf_copy_partial(p, (void*)tmpbuf, p->tot_len, 0);
+			spiram_writearray(0, tmpbuf, p->tot_len);
+			free(tmpbuf);
+			printf("Recvd %d bytes\r\n", p->tot_len);
+		}
+		else { printf("Can't allocate tmpbuf\r\n"); }
+	}
+
+	tcp_recved(VS_Socket, p->tot_len);
+	pbuf_free(p);
 	return ERR_OK;
 }
 
