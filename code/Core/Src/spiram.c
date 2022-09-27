@@ -124,6 +124,7 @@ void spiram_write_array_to_ringbuffer(uint8_t* data, uint16_t len) {
 			enableRAM();
 			HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
 		}
+		//If no space in buffer, it will simply override
 	}
 	disableRAM();
 }
@@ -149,6 +150,9 @@ uint32_t read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
 			spiram_setmode(SEQ_MODE);
 			enableRAM();
 			HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
+		}
+		if (spiram_ringbuffer_tail == spiram_ringbuffer_head) {
+			break;
 		}
 	}
 	disableRAM();
