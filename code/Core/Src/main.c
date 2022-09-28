@@ -34,6 +34,7 @@
 #include "user_diskio.h"
 #include "sd.h"
 #include "spiram.h"
+#include "ringbuffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -137,6 +138,7 @@ int main(void)
   else {printf("f_mount OK\r\n");}
 
   spiram_clear();
+  ringbuffer_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
@@ -149,19 +151,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	if ( ((uint32_t)(millis()-timer)) > 25000 ) {
+	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
+		printf("SPI RAM buffer: %lu bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
 
-		/*
-		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
-		printf("Writing data to spiram\r\n");
-		spiram_writearray(0x00000000, buffer, strlen((char *)buffer));
-		memset((char *)buffer, 0x00, sizeof(buffer));
-		spiram_readarray(0x00000000, buffer, sizeof(buffer));
-		printf("Data from spiram: %s\r\n", buffer);
-		*/
+
+//		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
+//		printf("Writing data to spiram\r\n");
+//		spiram_write_array_to_ringbuffer(buffer, sizeof(buffer));
+//		memset((char *)buffer, 0x00, sizeof(buffer));
+//		spiram_read_array_from_ringbuffer(buffer, sizeof(buffer));
+//		printf("Data from spiram: %s\r\n", buffer);
+
 
 		//usb_write();
 	}

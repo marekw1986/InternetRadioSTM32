@@ -281,7 +281,7 @@ initMedia() function with the last segment: */
     if (HAL_SPI_DeInit(&hspi3) != HAL_OK) {
     	printf("SD: SPI3 deinit error\r\n");
     }
-	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
     if (HAL_SPI_Init(&hspi3) != HAL_OK) {
     	printf("SD: SPI3 init error\r\n");
     }

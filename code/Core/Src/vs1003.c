@@ -19,6 +19,7 @@
 #include "ff.h"
 #include "spiram.h"
 #include "common.h"
+#include "ringbuffer.h"
 #include "main.h"
 
 #ifndef min
@@ -91,7 +92,7 @@ const char* internet_radios[] = {
 
 #define VS_BUFFER_SIZE  1024
 
-static uint8_t vsBuffer[2][VS_BUFFER_SIZE];
+static uint8_t vsBuffer[VS_BUFFER_SIZE];
 static uint16_t vsBuffer_shift = 0;
 static uint8_t active_buffer = 0x01;
 static uint8_t new_data_needed = 0;
@@ -114,6 +115,7 @@ typedef enum {
 	STREAM_HTTP_CONNECT_WAIT,
     STREAM_HTTP_SEND_REQUEST,
     STREAM_HTTP_PROCESS_HEADER,
+	STREAM_HTTP_FILL_BUFFER,
     STREAM_HTTP_GET_DATA,
     STREAM_FILE_GET_DATA,
     STREAM_HTTP_CLOSE,
@@ -265,17 +267,20 @@ void VS1003_sdi_send_zeroes(int len) {
 /****************************************************************************/
 
 uint8_t VS1003_feed_from_buffer (void) {
-    static uint16_t shift = 0;
+//    static uint16_t shift = 0;
+    uint8_t data[32];
 
     if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return 0;
 
-    VS1003_sdi_send_chunk(&vsBuffer[active_buffer][shift], 32);
-    shift += 32;
-    if (shift >= VS_BUFFER_SIZE) {
-        shift = 0;
-        active_buffer ^= 0x01;
-        new_data_needed = 1;
-    }
+    spiram_read_array_from_ringbuffer(data, 32);
+    VS1003_sdi_send_chunk(data, 32);
+//    VS1003_sdi_send_chunk(&vsBuffer[active_buffer][shift], 32);
+//    shift += 32;
+//    if (shift >= VS_BUFFER_SIZE) {
+//        shift = 0;
+//        active_buffer ^= 0x01;
+//        new_data_needed = 1;
+//    }
 
     return 0;
 }
@@ -398,20 +403,20 @@ void VS1003_handle(void) {
         case STREAM_HTTP_PROCESS_HEADER:;
         	if (args.data_ready) {
     			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= args.p->tot_len) ? args.p->tot_len : (VS_BUFFER_SIZE-vsBuffer_shift));
-    			w = pbuf_copy_partial(args.p, (void*)&vsBuffer[0][vsBuffer_shift], to_load, 0);
+    			w = pbuf_copy_partial(args.p, (void*)&vsBuffer[vsBuffer_shift], to_load, 0);
     			//tcp_recved(VS_Socket, w);
     			//pbuf_free(args.p);
     			vsBuffer_shift += w;
     			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
     				vsBuffer_shift = 0;
     			}
-    			vsBuffer[0][vsBuffer_shift] = '\0';
-				char* tok = strstr((char*)vsBuffer[0], "\r\n\r\n");
+    			vsBuffer[vsBuffer_shift] = '\0';
+				char* tok = strstr((char*)vsBuffer, "\r\n\r\n");
 	            if (tok) {
 	                tok[2] = '\0';
 	                tok[3] = '\0';
-	                printf((const char*)vsBuffer[0]);
-	                http_res_t http_result = parse_http_headers((char*)vsBuffer[0], strlen((char*)vsBuffer[0]), &uri);
+	                printf((const char*)vsBuffer);
+	                http_res_t http_result = parse_http_headers((char*)vsBuffer, strlen((char*)vsBuffer), &uri);
 	                switch (http_result) {
 	                    case HTTP_HEADER_ERROR:
 	                        printf("Parsing headers error\r\n");
@@ -422,7 +427,7 @@ void VS1003_handle(void) {
 	                        printf("It is 200 OK\r\n");
 	                        args.timer = millis();
 	                        vsBuffer_shift = 0;
-	                        StreamState = STREAM_HTTP_GET_DATA;
+	                        StreamState = STREAM_HTTP_GET_DATA;		//was STREAM_HTTP_GET_DATA
 	                        VS1003_startPlaying();
 	                       // StreamState = STREAM_HTTP_CLOSE;	//TEMP
 	                        //ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
@@ -447,21 +452,29 @@ void VS1003_handle(void) {
             }
             break;
 
+        case STREAM_HTTP_FILL_BUFFER:
+        	if ((uint32_t)(millis()-args.timer) > 800) {
+        		StreamState = STREAM_HTTP_GET_DATA;
+        		args.timer = millis();
+        		VS1003_startPlaying();
+        	}
+        	break;
+
 		case STREAM_HTTP_GET_DATA:
-            if (new_data_needed) {
-    			//to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= args.p->tot_len) ? args.p->tot_len : (VS_BUFFER_SIZE-vsBuffer_shift));
-    			//w = pbuf_copy_partial(args.p, (void*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load, 0);
-            	// Load data from SPI ring buffer here
-            	args.timer = millis();
-    			if (w > 0) {
-    				args.timer = millis();
-    				vsBuffer_shift += w;
-    				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-    					vsBuffer_shift = 0;
-    					new_data_needed = FALSE;
-    				}
-    			}
-            }
+//            if (new_data_needed) {
+//    			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= 128) ? 128 : (VS_BUFFER_SIZE-vsBuffer_shift));
+//    			//w = pbuf_copy_partial(args.p, (void*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load, 0);
+//    			w = spiram_read_array_from_ringbuffer((uint8_t*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load);
+//            	// Load data from SPI ring buffer here
+//    			if (w > 0) {
+//    				args.timer = millis();
+//    				vsBuffer_shift += w;
+//    				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
+//    					vsBuffer_shift = 0;
+//    					new_data_needed = FALSE;
+//    				}
+//    			}
+//            }
             VS1003_feed_from_buffer();
             if ( (uint32_t)(millis()-args.timer) > 5000) {
                 //There was no data in 5 seconds - reconnect
@@ -475,7 +488,7 @@ void VS1003_handle(void) {
             if (new_data_needed) {
                 unsigned int br;
                 //new_data_needed = 0;
-                FRESULT res = f_read(&fsrc, &vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], 512, &br);
+                //FRESULT res = f_read(&fsrc, &vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], 512, &br);
                 if (res == FR_OK) {
                     //printf("%d bytes of data loaded. Buffer %d. Shift %d\r\n", br, (active_buffer ^ 0x01), vsBuffer_shift);
                     vsBuffer_shift += 512;
@@ -751,15 +764,14 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 		VS1003_handle();	// call it to parse data right away
 		//return ERR_INPROGRESS;
 	}
-	else if (StreamState == STREAM_HTTP_GET_DATA) {
-		uint8_t* tmpbuf = (uint8_t*)malloc(p->tot_len);
-		if (tmpbuf) {
-			pbuf_copy_partial(p, (void*)tmpbuf, p->tot_len, 0);
-			spiram_writearray(0, tmpbuf, p->tot_len);
-			free(tmpbuf);
-			printf("Recvd %d bytes\r\n", p->tot_len);
-		}
-		else { printf("Can't allocate tmpbuf\r\n"); }
+	else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
+		struct pbuf* ptr = p;
+		do {
+			spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+			ptr = ptr->next;
+		} while (ptr);
+		args->timer = millis();
+		VS1003_handle();
 	}
 
 	tcp_recved(VS_Socket, p->tot_len);

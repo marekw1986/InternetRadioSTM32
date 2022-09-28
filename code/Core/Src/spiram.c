@@ -105,21 +105,24 @@ void spiram_readarray(uint32_t address, uint8_t *data, uint16_t len) {
 
 void spiram_write_array_to_ringbuffer(uint8_t* data, uint16_t len) {
 	uint8_t tmp[4] = {WRITE, (uint8_t)(spiram_ringbuffer_head >> 16), (uint8_t)(spiram_ringbuffer_head >> 8), (uint8_t)spiram_ringbuffer_head};
-	spiram_setmode(SEQ_MODE);
 
+	//printf("Writing to ring buffer, head: %lu, tail: %lu\r\n", spiram_ringbuffer_head, spiram_ringbuffer_tail);
+
+	spiram_setmode(SEQ_MODE);
 	enableRAM();
 	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
 	for (int i=0; i<len; i++) {
 		HAL_SPI_Transmit(&hspi3, &data[i], 1, HAL_MAX_DELAY);
 		spiram_ringbuffer_head++;
-		if (spiram_ringbuffer_head > 0x20000 /*end of buffer*/) {
+		if (spiram_ringbuffer_head >= 0x20000) {
 			spiram_ringbuffer_head = 0;
 			disableRAM();
 			//delay?
+			//delay_us(20);
 			tmp[0] = WRITE;
-			tmp[1] = (uint8_t)(spiram_ringbuffer_head >> 16);
-			tmp[2] = (uint8_t)(spiram_ringbuffer_head >> 8);
-			tmp[3] = (uint8_t)spiram_ringbuffer_head;
+			tmp[1] = 0x00;
+			tmp[2] = 0x00;
+			tmp[3] = 0x00;
 			spiram_setmode(SEQ_MODE);
 			enableRAM();
 			HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
@@ -129,9 +132,13 @@ void spiram_write_array_to_ringbuffer(uint8_t* data, uint16_t len) {
 	disableRAM();
 }
 
-uint32_t read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
+uint32_t spiram_read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
 	uint8_t tmp[4] = {READ, (uint8_t)(spiram_ringbuffer_tail >> 16), (uint8_t)(spiram_ringbuffer_tail >> 8), (uint8_t)spiram_ringbuffer_tail};
 	uint32_t bytes_read = 0;
+
+	if (spiram_ringbuffer_head == spiram_ringbuffer_tail) return 0;
+
+	//printf("Reading from ring buffer, head: %lu, tail: %lu\r\n", spiram_ringbuffer_head, spiram_ringbuffer_tail);
 
 	enableRAM();
 	HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
@@ -139,14 +146,15 @@ uint32_t read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
 		HAL_SPI_Receive(&hspi3, &data[i], 1, HAL_MAX_DELAY);
 		spiram_ringbuffer_tail++;
 		bytes_read++;
-		if (spiram_ringbuffer_tail > 0x20000) {
+		if (spiram_ringbuffer_tail >= 0x20000) {
 			spiram_ringbuffer_tail = 0;
 			disableRAM();
 			//delay?
+			//delay_us(20);
 			tmp[0] = READ;
-			tmp[1] = (uint8_t)(spiram_ringbuffer_tail >> 16);
-			tmp[2] = (uint8_t)(spiram_ringbuffer_tail >> 8);
-			tmp[3] = (uint8_t)spiram_ringbuffer_tail;
+			tmp[1] = 0x00;
+			tmp[2] = 0x00;
+			tmp[3] = 0x00;
 			spiram_setmode(SEQ_MODE);
 			enableRAM();
 			HAL_SPI_Transmit(&hspi3, tmp, 4, HAL_MAX_DELAY);
@@ -158,4 +166,8 @@ uint32_t read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
 	disableRAM();
 
 	return bytes_read;
+}
+
+uint32_t spiram_get_remaining_space_in_ringbuffer() {
+	return (spiram_ringbuffer_tail > spiram_ringbuffer_head) ? spiram_ringbuffer_tail-spiram_ringbuffer_head : 0x20000 - spiram_ringbuffer_head + spiram_ringbuffer_tail;
 }
