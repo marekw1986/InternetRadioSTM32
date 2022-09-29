@@ -41,5 +41,3 @@ extern Diskio_drvTypeDef  USER_Driver;
 #endif
 
 #endif /* __USER_DISKIO_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

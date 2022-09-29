@@ -19,7 +19,6 @@
 #include "ff.h"
 #include "spiram.h"
 #include "common.h"
-#include "ringbuffer.h"
 #include "main.h"
 
 #ifndef min
@@ -78,6 +77,7 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
+	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://stream3.polskieradio.pl:8900/",                                 //PR1
     "http://stream3.polskieradio.pl:8902/",                                 //PR2
     "http://stream3.polskieradio.pl:8904/",                                 //PR3
@@ -271,9 +271,10 @@ uint8_t VS1003_feed_from_buffer (void) {
     uint8_t data[32];
 
     if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return 0;
+    if (spiram_get_num_of_bytes_in_ringbuffer() < 32) return 2;
 
-    spiram_read_array_from_ringbuffer(data, 32);
-    VS1003_sdi_send_chunk(data, 32);
+    uint16_t w = spiram_read_array_from_ringbuffer(data, 32);
+    if (w == 32) VS1003_sdi_send_chunk(data, 32);
 //    VS1003_sdi_send_chunk(&vsBuffer[active_buffer][shift], 32);
 //    shift += 32;
 //    if (shift >= VS_BUFFER_SIZE) {
@@ -282,7 +283,7 @@ uint8_t VS1003_feed_from_buffer (void) {
 //        new_data_needed = 1;
 //    }
 
-    return 0;
+    return 1;
 }
 
 /****************************************************************************/
@@ -427,7 +428,7 @@ void VS1003_handle(void) {
 	                        printf("It is 200 OK\r\n");
 	                        args.timer = millis();
 	                        vsBuffer_shift = 0;
-	                        StreamState = STREAM_HTTP_GET_DATA;		//was STREAM_HTTP_GET_DATA
+	                        StreamState = STREAM_HTTP_FILL_BUFFER;		//was STREAM_HTTP_GET_DATA
 	                        VS1003_startPlaying();
 	                       // StreamState = STREAM_HTTP_CLOSE;	//TEMP
 	                        //ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
@@ -453,29 +454,57 @@ void VS1003_handle(void) {
             break;
 
         case STREAM_HTTP_FILL_BUFFER:
-        	if ((uint32_t)(millis()-args.timer) > 800) {
+			if (args.data_ready && args.p) {
+				if (spiram_get_remaining_space_in_ringbuffer() >= args.p->tot_len) {
+					struct pbuf* ptr = args.p;
+					do {
+						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						ptr = ptr->next;
+					} while (ptr);
+					tcp_recved(VS_Socket, args.p->tot_len);
+					pbuf_free(args.p);
+					args.data_ready = FALSE;
+					args.p = NULL;
+					args.timer = millis();
+				}
+			}
+        	if (spiram_get_remaining_space_in_ringbuffer() <= 4096) {
         		StreamState = STREAM_HTTP_GET_DATA;
         		args.timer = millis();
-        		VS1003_startPlaying();
+        		printf("Buffer filled\r\n");
+        		break;
         	}
+            if ( (uint32_t)(millis()-args.timer) > 5000) {
+                //There was no data in 5 seconds - reconnect
+                printf("Internet radio: no new data timeout - reseting\r\n");
+                ReconnectStrategy = RECONNECT_WAIT_LONG;
+                StreamState = STREAM_HTTP_CLOSE;
+            }
         	break;
 
 		case STREAM_HTTP_GET_DATA:
-//            if (new_data_needed) {
-//    			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= 128) ? 128 : (VS_BUFFER_SIZE-vsBuffer_shift));
-//    			//w = pbuf_copy_partial(args.p, (void*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load, 0);
-//    			w = spiram_read_array_from_ringbuffer((uint8_t*)&vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], to_load);
-//            	// Load data from SPI ring buffer here
-//    			if (w > 0) {
-//    				args.timer = millis();
-//    				vsBuffer_shift += w;
-//    				if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-//    					vsBuffer_shift = 0;
-//    					new_data_needed = FALSE;
-//    				}
-//    			}
-//            }
-            VS1003_feed_from_buffer();
+			if (args.data_ready && args.p) {
+				if (spiram_get_remaining_space_in_ringbuffer() >= args.p->tot_len) {
+					struct pbuf* ptr = args.p;
+					do {
+						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						ptr = ptr->next;
+					} while (ptr);
+					tcp_recved(VS_Socket, args.p->tot_len);
+					pbuf_free(args.p);
+					args.data_ready = FALSE;
+					args.p = NULL;
+					args.timer = millis();
+				}
+			}
+            //VS1003_feed_from_buffer();
+            //if (get_remaining_space_in_ringbuffer() > 7168) {
+            if (VS1003_feed_from_buffer() == 2) {
+            	StreamState = STREAM_HTTP_FILL_BUFFER;
+            	args.timer = millis();
+            	//VS1003_stopPlaying();
+            	break;
+            }
             if ( (uint32_t)(millis()-args.timer) > 5000) {
                 //There was no data in 5 seconds - reconnect
                 printf("Internet radio: no new data timeout - reseting\r\n");
@@ -758,24 +787,40 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 		return ERR_OK;
 	}
 
-	if (StreamState == STREAM_HTTP_PROCESS_HEADER)  {
-		args->data_ready = TRUE;
-		args->p = p;
-		VS1003_handle();	// call it to parse data right away
-		//return ERR_INPROGRESS;
-	}
-	else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
-		struct pbuf* ptr = p;
-		do {
-			spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-			ptr = ptr->next;
-		} while (ptr);
-		args->timer = millis();
-		VS1003_handle();
-	}
+	if (err != ERR_ABRT) {
+		if (StreamState == STREAM_HTTP_PROCESS_HEADER)  {
+			args->data_ready = TRUE;
+			args->p = p;
+			VS1003_handle();	// call it to parse data right away
+			tcp_recved(VS_Socket, p->tot_len);
+			pbuf_free(p);
+			return ERR_OK;
+			//return ERR_INPROGRESS;
+		}
+		else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
+			if (spiram_get_remaining_space_in_ringbuffer() >= p->tot_len) {
+				struct pbuf* ptr = p;
+				do {
+					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+					ptr = ptr->next;
+				} while (ptr);
+				args->timer = millis();
+				tcp_recved(VS_Socket, p->tot_len);
+				pbuf_free(p);
+				args->p = NULL;
+				args->data_ready = FALSE;
+				return ERR_OK;
+			}
+			else {
+				args->data_ready = TRUE;
+				args->p = p;
+				return ERR_OK;
+			}
+		}
 
-	tcp_recved(VS_Socket, p->tot_len);
-	pbuf_free(p);
+		tcp_recved(VS_Socket, p->tot_len);
+		pbuf_free(p);
+	}
 	return ERR_OK;
 }
 

@@ -34,7 +34,6 @@
 #include "user_diskio.h"
 #include "sd.h"
 #include "spiram.h"
-#include "ringbuffer.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -138,7 +137,6 @@ int main(void)
   else {printf("f_mount OK\r\n");}
 
   spiram_clear();
-  ringbuffer_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
@@ -151,10 +149,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
+	if ( ((uint32_t)(millis()-timer)) > 25000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %lu bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
+		printf("SPI RAM buffer: %d bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
 
 
@@ -212,6 +210,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -232,6 +231,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Configure the Systick interrupt time
   */
   __HAL_RCC_PLLI2S_ENABLE();
@@ -255,6 +255,7 @@ static void MX_RTC_Init(void)
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
+
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
@@ -595,5 +596,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

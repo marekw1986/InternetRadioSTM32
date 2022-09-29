@@ -182,6 +182,7 @@ USBH_StatusTypeDef USBH_LL_Init(USBH_HandleTypeDef *phost)
   hhcd_USB_OTG_FS.Instance = USB_OTG_FS;
   hhcd_USB_OTG_FS.Init.Host_channels = 8;
   hhcd_USB_OTG_FS.Init.speed = HCD_SPEED_FULL;
+  hhcd_USB_OTG_FS.Init.phy_itface = HCD_PHY_EMBEDDED;
   hhcd_USB_OTG_FS.Init.Sof_enable = DISABLE;
   if (HAL_HCD_Init(&hhcd_USB_OTG_FS) != HAL_OK)
   {
@@ -292,7 +293,7 @@ USBH_StatusTypeDef USBH_LL_ResetPort(USBH_HandleTypeDef *phost)
 }
 
 /**
-  * @brief  Return the last transfered packet size.
+  * @brief  Return the last transferred packet size.
   * @param  phost: Host handle
   * @param  pipe: Pipe index
   * @retval Packet size
@@ -487,7 +488,7 @@ void USBH_Delay(uint32_t Delay)
 }
 
 /**
-  * @brief  Retuns the USB status depending on the HAL status:
+  * @brief  Returns the USB status depending on the HAL status:
   * @param  hal_status: HAL status
   * @retval USB status
   */
@@ -516,4 +517,3 @@ USBH_StatusTypeDef USBH_Get_USB_Status(HAL_StatusTypeDef hal_status)
   return usb_status;
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -171,3 +171,7 @@ uint32_t spiram_read_array_from_ringbuffer(uint8_t* data, uint32_t len) {
 uint32_t spiram_get_remaining_space_in_ringbuffer() {
 	return (spiram_ringbuffer_tail > spiram_ringbuffer_head) ? spiram_ringbuffer_tail-spiram_ringbuffer_head : 0x20000 - spiram_ringbuffer_head + spiram_ringbuffer_tail;
 }
+
+uint16_t spiram_get_num_of_bytes_in_ringbuffer() {
+    return 0x20000 - spiram_get_remaining_space_in_ringbuffer();
+}

@@ -1,4 +1,4 @@
-
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * File Name          : Target/lwipopts.h
@@ -7,16 +7,16 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2022 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
+/* USER CODE END Header */
 
 /* Define to prevent recursive inclusion --------------------------------------*/
 #ifndef __LWIPOPTS__H__
@@ -51,6 +51,10 @@
 #define LWIP_DHCP 1
 /*----- Default Value for LWIP_DNS: 0 ---*/
 #define LWIP_DNS 1
+/*----- Default Value for MEMP_NUM_UDP_PCB: 4 ---*/
+#define MEMP_NUM_UDP_PCB 2
+/*----- Default Value for MEMP_NUM_TCP_PCB: 5 ---*/
+#define MEMP_NUM_TCP_PCB 2
 /*----- Value in opt.h for NO_SYS: 0 -----*/
 #define NO_SYS 1
 /*----- Value in opt.h for SYS_LIGHTWEIGHT_PROT: 1 -----*/
@@ -61,14 +65,14 @@
 #define LWIP_ETHERNET 1
 /*----- Value in opt.h for LWIP_DNS_SECURE: (LWIP_DNS_SECURE_RAND_XID | LWIP_DNS_SECURE_NO_MULTIPLE_OUTSTANDING | LWIP_DNS_SECURE_RAND_SRC_PORT) -*/
 #define LWIP_DNS_SECURE 7
+/*----- Default Value for TCP_WND: 5840 ---*/
+#define TCP_WND 2920
+/*----- Default Value for TCP_MSS: 536 ---*/
+#define TCP_MSS 1460
 /*----- Value in opt.h for TCP_SND_QUEUELEN: (4*TCP_SND_BUF + (TCP_MSS - 1))/TCP_MSS -----*/
 #define TCP_SND_QUEUELEN 9
-/*----- Value in opt.h for TCP_SNDLOWAT: LWIP_MIN(LWIP_MAX(((TCP_SND_BUF)/2), (2 * TCP_MSS) + 1), (TCP_SND_BUF) - 1) -*/
-#define TCP_SNDLOWAT 1071
 /*----- Value in opt.h for TCP_SNDQUEUELOWAT: LWIP_MAX(TCP_SND_QUEUELEN)/2, 5) -*/
 #define TCP_SNDQUEUELOWAT 5
-/*----- Value in opt.h for TCP_WND_UPDATE_THRESHOLD: LWIP_MIN(TCP_WND/4, TCP_MSS*4) -----*/
-#define TCP_WND_UPDATE_THRESHOLD 536
 /*----- Value in opt.h for LWIP_NETIF_LINK_CALLBACK: 0 -----*/
 #define LWIP_NETIF_LINK_CALLBACK 1
 /*----- Value in opt.h for LWIP_NETCONN: 1 -----*/
@@ -77,8 +81,10 @@
 #define LWIP_SOCKET 0
 /*----- Value in opt.h for RECV_BUFSIZE_DEFAULT: INT_MAX -----*/
 #define RECV_BUFSIZE_DEFAULT 2000000000
-/*----- Default Value for LWIP_SNTP: 0 ---*/
-#define LWIP_SNTP 1
+/*----- Default Value for LWIP_DISABLE_TCP_SANITY_CHECKS: 0 ---*/
+#define LWIP_DISABLE_TCP_SANITY_CHECKS 1
+/*----- Default Value for LWIP_DISABLE_MEMP_SANITY_CHECKS: 0 ---*/
+#define LWIP_DISABLE_MEMP_SANITY_CHECKS 1
 /*----- Value in opt.h for LWIP_STATS: 1 -----*/
 #define LWIP_STATS 0
 /*----- Value in opt.h for CHECKSUM_GEN_IP: 1 -----*/
@@ -110,5 +116,3 @@
 }
 #endif
 #endif /*__LWIPOPTS__H__ */
-
-/************************* (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
