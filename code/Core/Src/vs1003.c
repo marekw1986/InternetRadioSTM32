@@ -77,10 +77,10 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
-	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://stream3.polskieradio.pl:8900/",                                 //PR1
     "http://stream3.polskieradio.pl:8902/",                                 //PR2
     "http://stream3.polskieradio.pl:8904/",                                 //PR3
+	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://stream4.nadaje.com:9680/radiokrakow-s3",                        //Kraków
     "http://195.150.20.5/rmf_fm",                                           //RMF
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5",         //Zet
@@ -94,8 +94,6 @@ const char* internet_radios[] = {
 
 static uint8_t vsBuffer[VS_BUFFER_SIZE];
 static uint16_t vsBuffer_shift = 0;
-static uint8_t active_buffer = 0x01;
-static uint8_t new_data_needed = 0;
 
 FIL fsrc;
 DIR vsdir;
@@ -117,6 +115,7 @@ typedef enum {
     STREAM_HTTP_PROCESS_HEADER,
 	STREAM_HTTP_FILL_BUFFER,
     STREAM_HTTP_GET_DATA,
+	STREAM_FILE_FILL_BUFFER,
     STREAM_FILE_GET_DATA,
     STREAM_HTTP_CLOSE,
     STREAM_HTTP_RECONNECT_WAIT
@@ -294,6 +293,8 @@ void VS1003_handle(void) {
 	uint16_t w = 0;
 	uint16_t to_load = 0;
 	err_t res;
+	FRESULT fres;
+	unsigned int br;
 
 	switch(StreamState)
 	{
@@ -488,6 +489,7 @@ void VS1003_handle(void) {
 					struct pbuf* ptr = args.p;
 					do {
 						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+			            VS1003_feed_from_buffer();
 						ptr = ptr->next;
 					} while (ptr);
 					tcp_recved(VS_Socket, args.p->tot_len);
@@ -513,38 +515,51 @@ void VS1003_handle(void) {
             }
 			break;
 
-        case STREAM_FILE_GET_DATA:
-            if (new_data_needed) {
-                unsigned int br;
-                //new_data_needed = 0;
-                //FRESULT res = f_read(&fsrc, &vsBuffer[active_buffer ^ 0x01][vsBuffer_shift], 512, &br);
-                if (res == FR_OK) {
-                    //printf("%d bytes of data loaded. Buffer %d. Shift %d\r\n", br, (active_buffer ^ 0x01), vsBuffer_shift);
-                    vsBuffer_shift += 512;
-                    if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-                        vsBuffer_shift = 0;
-                        new_data_needed = 0;
-                    }
+		case STREAM_FILE_FILL_BUFFER:
+			if (spiram_get_remaining_space_in_ringbuffer() < 512) {
+				StreamState = STREAM_FILE_GET_DATA;
+				printf("Buffer filled\r\n");
+				break;
+			}
+			fres = f_read(&fsrc, vsBuffer, 512, &br);
+			if (fres == FR_OK) {
+				spiram_write_array_to_ringbuffer((uint8_t*)vsBuffer, br);
+				if (br < 512) {
+					StreamState = STREAM_FILE_GET_DATA;
+					printf("End of file\r\n");
+					break;
+				}
+			}
+			break;
 
-                    if (br < 512) {     //end of file
-                        if (dir_flag) {
-                            VS1003_play_next_audio_file_from_directory();   //it handles loops
-                        }
-                        else {
-                            if (loop_flag) {
-                                res = f_lseek(&fsrc, 0);
-                                if (res != FR_OK) printf("f_lseek ERROR\r\n");
-                            }
-                            else {
-                                VS1003_stopPlaying();
-                                f_close(&fsrc);
-                                StreamState = STREAM_HOME;
-                            }
-                        }
-                    }
-                }
-            }
-            VS1003_feed_from_buffer();
+        case STREAM_FILE_GET_DATA:;
+			if (spiram_get_remaining_space_in_ringbuffer() >= 512) {
+				fres = f_read(&fsrc, vsBuffer, 512, &br);
+				if (fres == FR_OK) {
+					//printf("%d bytes of data loaded. Buffer %d. Shift %d\r\n", br, (active_buffer ^ 0x01), vsBuffer_shift);
+					spiram_write_array_to_ringbuffer((uint8_t*)vsBuffer, br);
+					if (br < 512) {     //end of file
+						if (dir_flag) {
+							VS1003_play_next_audio_file_from_directory();   //it handles loops
+						}
+						else {
+							if (loop_flag) {
+								res = f_lseek(&fsrc, 0);
+								if (res != FR_OK) printf("f_lseek ERROR\r\n");
+							}
+							else {
+								VS1003_stopPlaying();
+								f_close(&fsrc);
+								StreamState = STREAM_HOME;
+							}
+						}
+					}
+				}
+			}
+			if (VS1003_feed_from_buffer() == 2) {
+				StreamState = STREAM_FILE_FILL_BUFFER;
+				printf("No data in buffer, fill it\r\n");
+			}
             break;
 
 		case STREAM_HTTP_CLOSE:
@@ -802,6 +817,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 				struct pbuf* ptr = p;
 				do {
 					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+					if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
 					ptr = ptr->next;
 				} while (ptr);
 				args->timer = millis();
