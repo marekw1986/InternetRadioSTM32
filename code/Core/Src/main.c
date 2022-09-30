@@ -34,6 +34,7 @@
 #include "user_diskio.h"
 #include "sd.h"
 #include "spiram.h"
+#include "lwip/apps/lwiperf.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -51,6 +52,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+CRC_HandleTypeDef hcrc;
+
 RTC_HandleTypeDef hrtc;
 
 SPI_HandleTypeDef hspi1;
@@ -72,6 +75,7 @@ static void MX_SPI3_Init(void);
 static void MX_RTC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM4_Init(void);
+static void MX_CRC_Init(void);
 void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
@@ -122,6 +126,7 @@ int main(void)
   MX_RTC_Init();
   MX_SPI1_Init();
   MX_TIM4_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start(&htim4);									//Required for delay_us
   HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
@@ -141,7 +146,7 @@ int main(void)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  VS1003_play_dir("1:/test");
+//  VS1003_play_dir("1:/test");
   one_time_timer = millis();
   /* USER CODE END 2 */
 
@@ -152,7 +157,7 @@ int main(void)
 	if ( ((uint32_t)(millis()-timer)) > 25000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %d bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
+		printf("SPI RAM buffer: %lu bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
 
 
@@ -169,8 +174,8 @@ int main(void)
 
 	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
 		one_time_timer = 0;
-		//printf("Connecting to radio");
-		//VS1003_play_next_http_stream_from_list();
+		printf("Connecting to radio");
+		VS1003_play_next_http_stream_from_list();
 	}
 	//disk_timerproc();
 
@@ -235,6 +240,32 @@ void SystemClock_Config(void)
   /** Configure the Systick interrupt time
   */
   __HAL_RCC_PLLI2S_ENABLE();
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
 }
 
 /**

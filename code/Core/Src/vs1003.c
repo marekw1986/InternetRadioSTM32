@@ -77,10 +77,10 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
+	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://stream3.polskieradio.pl:8900/",                                 //PR1
     "http://stream3.polskieradio.pl:8902/",                                 //PR2
     "http://stream3.polskieradio.pl:8904/",                                 //PR3
-	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://stream4.nadaje.com:9680/radiokrakow-s3",                        //Kraków
     "http://195.150.20.5/rmf_fm",                                           //RMF
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5",         //Zet
