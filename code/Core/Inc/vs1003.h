@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define VS1003_MEASURE_STREAM_BITRATE
+
 #define RXNE    0x01
 #define TXE     0x02
 #define BSY     0x80
@@ -40,6 +42,10 @@ void VS1003_play_dir (const char* url);
 void VS1003_stop(void);
 void VS1003_setLoop(uint8_t val);
 uint8_t VS1003_getLoop(void);
+
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+uint32_t VS1003_get_stream_bitrate(void);
+#endif
 
 
 #ifdef	__cplusplus

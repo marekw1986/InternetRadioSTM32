@@ -95,6 +95,11 @@ const char* internet_radios[] = {
 static uint8_t vsBuffer[VS_BUFFER_SIZE];
 static uint16_t vsBuffer_shift = 0;
 
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+static uint32_t measured_stream_bitrate_tmp = 0;
+static uint32_t measured_stream_bitrate = 0;
+#endif
+
 FIL fsrc;
 DIR vsdir;
 
@@ -295,6 +300,9 @@ void VS1003_handle(void) {
 	err_t res;
 	FRESULT fres;
 	unsigned int br;
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+	static uint32_t measure_stream_bitrate_timer = 0;
+#endif
 
 	switch(StreamState)
 	{
@@ -462,6 +470,9 @@ void VS1003_handle(void) {
 						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 						ptr = ptr->next;
 					} while (ptr);
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+					measured_stream_bitrate_tmp += args.p->tot_len;
+#endif
 					tcp_recved(VS_Socket, args.p->tot_len);
 					pbuf_free(args.p);
 					args.data_ready = FALSE;
@@ -492,6 +503,9 @@ void VS1003_handle(void) {
 			            VS1003_feed_from_buffer();
 						ptr = ptr->next;
 					} while (ptr);
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+					measured_stream_bitrate_tmp += args.p->tot_len;
+#endif
 					tcp_recved(VS_Socket, args.p->tot_len);
 					pbuf_free(args.p);
 					args.data_ready = FALSE;
@@ -595,6 +609,13 @@ void VS1003_handle(void) {
             }
             break;
 	}
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+	if ((uint32_t)(millis()-measure_stream_bitrate_timer) > 1000 ) {
+		measured_stream_bitrate = measured_stream_bitrate_tmp;
+		measured_stream_bitrate_tmp = 0;
+		measure_stream_bitrate_timer = millis();
+	}
+#endif
 }
 
 /****************************************************************************/
@@ -807,6 +828,9 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			args->data_ready = TRUE;
 			args->p = p;
 			VS1003_handle();	// call it to parse data right away
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+			measured_stream_bitrate_tmp += p->tot_len;
+#endif
 			tcp_recved(VS_Socket, p->tot_len);
 			pbuf_free(p);
 			return ERR_OK;
@@ -822,6 +846,9 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 				} while (ptr);
 				args->timer = millis();
 				tcp_recved(VS_Socket, p->tot_len);
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+				measured_stream_bitrate_tmp += p->tot_len;
+#endif
 				pbuf_free(p);
 				args->p = NULL;
 				args->data_ready = FALSE;
@@ -957,3 +984,9 @@ void VS1003_setLoop(uint8_t val) {
 uint8_t VS1003_getLoop(void) {
   return loop_flag;
 }
+
+#ifdef VS1003_MEASURE_STREAM_BITRATE
+uint32_t VS1003_get_stream_bitrate (void) {
+	return measured_stream_bitrate;
+}
+#endif
