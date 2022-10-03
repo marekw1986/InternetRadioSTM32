@@ -77,11 +77,12 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
-	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
-    "http://stream3.polskieradio.pl:8900/",                                 //PR1
-    "http://stream3.polskieradio.pl:8902/",                                 //PR2
-    "http://stream3.polskieradio.pl:8904/",                                 //PR3
+    "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
+//    "http://stream3.polskieradio.pl:8900/",                                 //PR1
+//    "http://stream3.polskieradio.pl:8902/",                                 //PR2
+//    "http://stream3.polskieradio.pl:8904/",                                 //PR3
     "http://stream4.nadaje.com:9680/radiokrakow-s3",                        //Kraków
+	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://195.150.20.5/rmf_fm",                                           //RMF
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5",         //Zet
     "http://ckluradio.laurentian.ca:88/broadwave.mp3",                      //CKLU
@@ -90,7 +91,7 @@ const char* internet_radios[] = {
     "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
 };
 
-#define VS_BUFFER_SIZE  1024
+#define VS_BUFFER_SIZE  2048
 
 static uint8_t vsBuffer[VS_BUFFER_SIZE];
 static uint16_t vsBuffer_shift = 0;
@@ -311,6 +312,8 @@ void VS1003_handle(void) {
             break;
 
 		case STREAM_HTTP_BEGIN:
+			//clear circular buffer
+			spiram_clear_ringbuffer();
 			//We start with getting address from DNS
 			res = dns_gethostbyname(uri.server, &server_addr, dns_cbk, (void*)&server_addr);
 			switch (res) {
@@ -755,7 +758,7 @@ static inline void data_mode_off(void) {
 }
 
 static void VS1003_startPlaying(void) {
-VS1003_sdi_send_zeroes(10);
+	VS1003_sdi_send_zeroes(10);
 }
 
 static void VS1003_stopPlaying(void) {
@@ -956,11 +959,10 @@ void VS1003_stop(void) {
 	  case STREAM_HTTP_SOCKET_OBTAINED:
 	  case STREAM_HTTP_SEND_REQUEST:
 	  case STREAM_HTTP_PROCESS_HEADER:
+	  case STREAM_HTTP_FILL_BUFFER:
 	  case STREAM_HTTP_GET_DATA:
-		  //if(VS_Socket != INVALID_SOCKET) {
-		  //    TCPDisconnect(VS_Socket);
-		  //    VS_Socket = INVALID_SOCKET;
-		  //}
+		  StreamState = STREAM_HTTP_CLOSE;
+		  ReconnectStrategy = RECONNECT_IMMEDIATELY;
 		  break;
 	  case STREAM_FILE_GET_DATA:
 		  f_close(&fsrc);
@@ -968,13 +970,13 @@ void VS1003_stop(void) {
 			  f_closedir(&vsdir);
 			  dir_flag = FALSE;
 		  }
+		  StreamState = STREAM_HOME;
 		  break;
 	  default:
 		  return;
 		  break;
   }
   VS1003_stopPlaying();
-  StreamState = STREAM_HOME;
 }
 
 void VS1003_setLoop(uint8_t val) {

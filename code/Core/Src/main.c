@@ -96,6 +96,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
   uint32_t timer = 0;
   uint32_t one_time_timer = 0;
+  uint32_t switch_timer = 0;
   FRESULT res;
   //uint8_t buffer[64];
   /* USER CODE END 1 */
@@ -154,12 +155,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	if ( ((uint32_t)(millis()-timer)) > 25000 ) {
+	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %lu bytes free\r\n", spiram_get_remaining_space_in_ringbuffer());
+		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
-
 
 //		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
 //		printf("Writing data to spiram\r\n");
@@ -167,7 +167,6 @@ int main(void)
 //		memset((char *)buffer, 0x00, sizeof(buffer));
 //		spiram_read_array_from_ringbuffer(buffer, sizeof(buffer));
 //		printf("Data from spiram: %s\r\n", buffer);
-
 
 		//usb_write();
 	}
@@ -177,6 +176,12 @@ int main(void)
 		printf("Connecting to radio");
 		VS1003_play_next_http_stream_from_list();
 	}
+
+//	if ((uint32_t)(millis()-switch_timer) > 60000) {
+//		switch_timer = millis();
+//		printf("Changing radio\r\n");
+//		VS1003_play_next_http_stream_from_list();
+//	}
 	//disk_timerproc();
 
 	VS1003_handle();
