@@ -94,6 +94,8 @@ const char* internet_radios[] = {
 #define VS_BUFFER_SIZE  2048
 
 static uint8_t vsBuffer[VS_BUFFER_SIZE];
+static uint16_t VS1003_ringbuffer_head = 0;
+static uint16_t VS1003_ringbuffer_tail = 0;
 static uint16_t vsBuffer_shift = 0;
 
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -201,6 +203,12 @@ static uint8_t VS1003_SPI_transfer(uint8_t outB);
 static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
 static void VS1003_handle_end_of_file (void);
+static void VS1003_write_byte_to_ringbuffer(uint8_t data);
+static void VS1003_write_array_to_ringbuffer(uint8_t* data, uint16_t len);
+static uint16_t VS1003_read_array_from_ringbuffer(uint8_t* data, uint16_t len);
+static void VS1003_clear_ringbuffer(void);
+static uint16_t VS1003_get_remaining_space_in_ringbuffer(void);
+static uint16_t VS1003_get_num_of_bytes_in_ringbuffer(void);
 static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err);
 static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
@@ -788,6 +796,54 @@ static void VS1003_handle_end_of_file (void) {
             StreamState = STREAM_HOME;
         }
     }
+}
+
+static void VS1003_write_byte_to_ringbuffer(uint8_t data) {
+    vsBuffer[VS1003_ringbuffer_head] = data;
+    VS1003_ringbuffer_head++;
+    if (VS1003_ringbuffer_head >= VS_BUFFER_SIZE) {
+        VS1003_ringbuffer_head = 0;
+    }
+    //If no space in buffer, it will simply override
+}
+
+static void VS1003_write_array_to_ringbuffer(uint8_t* data, uint16_t len) {
+    uint16_t i;
+	for (i=0; i<len; i++) {
+        VS1003_write_byte_to_ringbuffer(data[i]);
+	}
+}
+
+static uint16_t VS1003_read_array_from_ringbuffer(uint8_t* data, uint16_t len) {
+	uint32_t bytes_read = 0;
+    uint16_t i;
+
+	if (VS1003_ringbuffer_head == VS1003_ringbuffer_tail) return 0;
+
+	for(i=0; i<len; i++) {
+		data[i] = vsBuffer[VS1003_ringbuffer_tail];
+		VS1003_ringbuffer_tail++;
+		bytes_read++;
+		if (VS1003_ringbuffer_tail >= VS_BUFFER_SIZE) {
+			VS1003_ringbuffer_tail = 0;
+		}
+		if (VS1003_ringbuffer_tail == VS1003_ringbuffer_head) { break; }
+	}
+
+	return bytes_read;
+}
+
+static void VS1003_clear_ringbuffer(void) {
+    VS1003_ringbuffer_head = 0;
+    VS1003_ringbuffer_tail = 0;
+}
+
+static uint16_t VS1003_get_remaining_space_in_ringbuffer(void) {
+	return (VS1003_ringbuffer_tail > VS1003_ringbuffer_head) ? VS1003_ringbuffer_tail-VS1003_ringbuffer_head : VS_BUFFER_SIZE - VS1003_ringbuffer_head + VS1003_ringbuffer_tail;
+}
+
+static uint16_t VS1003_get_num_of_bytes_in_ringbuffer(void) {
+    return VS_BUFFER_SIZE - VS1003_get_remaining_space_in_ringbuffer();
 }
 
 static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
