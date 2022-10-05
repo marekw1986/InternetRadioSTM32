@@ -77,6 +77,7 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
+	"http://stream3.polskieradio.pl:8900/",                                 //PR1
     "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
 //    "http://stream3.polskieradio.pl:8900/",                                 //PR1
 //    "http://stream3.polskieradio.pl:8902/",                                 //PR2
@@ -507,11 +508,10 @@ void VS1003_handle(void) {
 
 		case STREAM_HTTP_GET_DATA:
 			if (args.data_ready && args.p) {
-				if ( (spiram_get_remaining_space_in_ringbuffer() > 8192) && (spiram_get_remaining_space_in_ringbuffer() >= args.p->tot_len) ) {
+				if ( spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128) ) {
 					struct pbuf* ptr = args.p;
 					do {
-						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-			            VS1003_feed_from_buffer();
+						//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 						ptr = ptr->next;
 					} while (ptr);
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -893,11 +893,10 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			//return ERR_INPROGRESS;
 		}
 		else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
-			if (spiram_get_remaining_space_in_ringbuffer() >= p->tot_len) {
+			if (spiram_get_remaining_space_in_ringbuffer() >= (p->tot_len+128)) {
 				struct pbuf* ptr = p;
 				do {
-					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-					if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
+					//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 					ptr = ptr->next;
 				} while (ptr);
 				args->timer = millis();
