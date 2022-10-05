@@ -146,7 +146,7 @@ int main(void)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-//  VS1003_play_dir("1:/test");
+  VS1003_play_dir("1:/test");
   one_time_timer = millis();
   /* USER CODE END 2 */
 
@@ -157,7 +157,7 @@ int main(void)
 	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
+		printf("SPI RAM buffer: %d bytes free, dw speed: %ld kB/s\r\n", VS1003_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
 
 //		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
@@ -173,7 +173,7 @@ int main(void)
 	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
 		one_time_timer = 0;
 		printf("Connecting to radio");
-		VS1003_play_next_http_stream_from_list();
+		//VS1003_play_next_http_stream_from_list();
 	}
 
 //	if ((uint32_t)(millis()-switch_timer) > 60000) {

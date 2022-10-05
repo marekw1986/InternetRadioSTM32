@@ -41,6 +41,7 @@ void VS1003_play_dir (const char* url);
 void VS1003_stop(void);
 void VS1003_setLoop(uint8_t val);
 uint8_t VS1003_getLoop(void);
+uint16_t VS1003_get_remaining_space_in_ringbuffer(void);
 
 #ifdef VS1003_MEASURE_STREAM_BITRATE
 uint32_t VS1003_get_stream_bitrate(void);
