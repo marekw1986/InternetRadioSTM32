@@ -96,7 +96,6 @@ int main(void)
   /* USER CODE BEGIN 1 */
   uint32_t timer = 0;
   uint32_t one_time_timer = 0;
-  uint32_t switch_timer = 0;
   FRESULT res;
   //uint8_t buffer[64];
   /* USER CODE END 1 */
