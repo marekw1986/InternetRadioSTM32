@@ -77,8 +77,7 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
-	"http://stream3.polskieradio.pl:8900/",                                 //PR1
-    "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
+	"http://stream4.nadaje.com:9678/radiokrakow-s2",                                     //Radio Pryzmat
 //    "http://stream3.polskieradio.pl:8900/",                                 //PR1
 //    "http://stream3.polskieradio.pl:8902/",                                 //PR2
 //    "http://stream3.polskieradio.pl:8904/",                                 //PR3
@@ -664,7 +663,7 @@ void VS1003_begin(void) {
   // Now you can set high speed SPI clock
   //SPI configuration
   ////8 bit master mode, CKE=1, CKP=0
-  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_32);       //2.5 MHz
+  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_8);       //4.5 MHz
 
   printf("VS1003 Set\r\n");
   VS1003_printDetails();

@@ -137,7 +137,7 @@ int main(void)
   HAL_GPIO_WritePin(TST_GPIO_Port, TST_Pin, 1);
   HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, 1);
 
-  res = f_mount(&FatFS, "1:", 0);
+  res = f_mount(&FatFS, "0:", 0);
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
@@ -146,7 +146,7 @@ int main(void)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  VS1003_play_dir("1:/test");
+  //VS1003_play_dir("1:/test");
   one_time_timer = millis();
   /* USER CODE END 2 */
 
@@ -172,8 +172,9 @@ int main(void)
 
 	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
 		one_time_timer = 0;
-		printf("Connecting to radio");
-		//VS1003_play_next_http_stream_from_list();
+		printf("Connecting to radio\r\n");
+		VS1003_play_next_http_stream_from_list();
+		//VS1003_play_dir("0:/");
 	}
 
 //	if ((uint32_t)(millis()-switch_timer) > 60000) {
