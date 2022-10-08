@@ -157,7 +157,7 @@ int main(void)
 	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
 		timer = millis();
 		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %d bytes free, dw speed: %ld kB/s\r\n", VS1003_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
+		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
 		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
 
 //		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);

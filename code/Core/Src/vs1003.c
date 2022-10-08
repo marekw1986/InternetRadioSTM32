@@ -290,9 +290,9 @@ feed_ret_t VS1003_feed_from_buffer (void) {
     uint8_t data[32];
 
     if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return FEED_RET_NO_DATA_NEEDED;
-    if (VS1003_get_num_of_bytes_in_ringbuffer() < 32) return FEED_RET_BUFFER_EMPTY;
+    if (spiram_get_num_of_bytes_in_ringbuffer() < 32) return FEED_RET_BUFFER_EMPTY;
 
-    uint16_t w = VS1003_read_array_from_ringbuffer(data, 32);
+    uint16_t w = spiram_read_array_from_ringbuffer(data, 32);
     if (w == 32) VS1003_sdi_send_chunk(data, 32);
 
     return FEED_RET_OK;
@@ -475,10 +475,10 @@ void VS1003_handle(void) {
 
         case STREAM_HTTP_FILL_BUFFER:
 			if (args.data_ready && args.p) {
-				if (VS1003_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128)) {
+				if (spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128)) {
 					struct pbuf* ptr = args.p;
 					do {
-						VS1003_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 						ptr = ptr->next;
 					} while (ptr);
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -497,7 +497,7 @@ void VS1003_handle(void) {
 					break;
 				}
 			}
-        	if (VS1003_get_remaining_space_in_ringbuffer() <= 256) {
+        	if (spiram_get_remaining_space_in_ringbuffer() <= 256) {
         		StreamState = STREAM_HTTP_GET_DATA;
         		args.timer = millis();
         		printf("Buffer filled\r\n");
@@ -513,10 +513,10 @@ void VS1003_handle(void) {
 
 		case STREAM_HTTP_GET_DATA:
 			if (args.data_ready && args.p) {
-				if ( VS1003_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128) ) {
+				if ( spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128) ) {
 					struct pbuf* ptr = args.p;
 					do {
-						VS1003_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 						ptr = ptr->next;
 					} while (ptr);
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -544,10 +544,10 @@ void VS1003_handle(void) {
 			break;
 
         case STREAM_FILE_GET_DATA:;
-        if (VS1003_get_remaining_space_in_ringbuffer() > 128) {
+        if (spiram_get_remaining_space_in_ringbuffer() > 128) {
 			fres = f_read(&fsrc, tmpbuf, 32, &br);
 			if ( fres == FR_OK ) {
-				VS1003_write_array_to_ringbuffer(tmpbuf, br);
+				spiram_write_array_to_ringbuffer(tmpbuf, br);
 				if (br < 32) { VS1003_handle_end_of_file(); }
 			}
         }
@@ -559,10 +559,10 @@ void VS1003_handle(void) {
         }
         if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
             //buffer empty
-            while (VS1003_get_remaining_space_in_ringbuffer() > 128) {
+            while (spiram_get_remaining_space_in_ringbuffer() > 128) {
                 fres = f_read(&fsrc, tmpbuf, 32, &br);
                 if (fres == FR_OK) {
-                	VS1003_write_array_to_ringbuffer(tmpbuf, 32);
+                	spiram_write_array_to_ringbuffer(tmpbuf, 32);
                     if (br < 32) { VS1003_handle_end_of_file(); }
                 }
             }
@@ -898,10 +898,10 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			//return ERR_INPROGRESS;
 		}
 		else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
-			if (VS1003_get_remaining_space_in_ringbuffer() >= (p->tot_len+128)) {
+			if (spiram_get_remaining_space_in_ringbuffer() >= (p->tot_len+128)) {
 				struct pbuf* ptr = p;
 				do {
-					VS1003_write_array_to_ringbuffer(ptr->payload, ptr->len);
+					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
 					ptr = ptr->next;
 				} while (ptr);
 				args->timer = millis();
