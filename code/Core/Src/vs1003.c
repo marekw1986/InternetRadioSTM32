@@ -77,7 +77,7 @@ extern SPI_HandleTypeDef hspi1;
 
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
-	"http://stream4.nadaje.com:9678/radiokrakow-s2",                                     //Radio Pryzmat
+	"http://ckluradio.laurentian.ca:88/broadwave.mp3",                                     //Radio Pryzmat
 //    "http://stream3.polskieradio.pl:8900/",                                 //PR1
 //    "http://stream3.polskieradio.pl:8902/",                                 //PR2
 //    "http://stream3.polskieradio.pl:8904/",                                 //PR3
