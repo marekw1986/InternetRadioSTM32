@@ -78,16 +78,16 @@ extern SPI_HandleTypeDef hspi1;
 const char* internet_radios[] = {
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
 	"http://ckluradio.laurentian.ca:88/broadwave.mp3",                                     //Radio Pryzmat
-//    "http://stream3.polskieradio.pl:8900/",                                 //PR1
-//    "http://stream3.polskieradio.pl:8902/",                                 //PR2
-//    "http://stream3.polskieradio.pl:8904/",                                 //PR3
+    "http://stream3.polskieradio.pl:8900/",                                 //PR1
+    "http://stream3.polskieradio.pl:8902/",                                 //PR2
+    "http://stream3.polskieradio.pl:8904/",                                 //PR3
     "http://stream4.nadaje.com:9680/radiokrakow-s3",                        //Kraków
 	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
     "http://195.150.20.5/rmf_fm",                                           //RMF
     "http://redir.atmcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5",         //Zet
     "http://ckluradio.laurentian.ca:88/broadwave.mp3",                      //CKLU
-    "http://stream.rcs.revma.com/an1ugyygzk8uv",                            //Radio 357
-    "http://stream.rcs.revma.com/ypqt40u0x1zuv",                            //Radio Nowy Swiat
+    //"http://stream.rcs.revma.com/an1ugyygzk8uv",                            //Radio 357
+    //"http://stream.rcs.revma.com/ypqt40u0x1zuv",                            //Radio Nowy Swiat
     "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
 };
 
@@ -517,6 +517,7 @@ void VS1003_handle(void) {
 					struct pbuf* ptr = args.p;
 					do {
 						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						VS1003_feed_from_buffer();
 						ptr = ptr->next;
 					} while (ptr);
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -656,14 +657,14 @@ void VS1003_begin(void) {
   VS1003_write_register(SCI_MODE, (1 << SM_SDINEW) | (1 << SM_RESET) );
   HAL_Delay(1);
   await_data_request();
-  VS1003_write_register(SCI_CLOCKF,0xB800); // Experimenting with higher clock settings
+  VS1003_write_register(SCI_CLOCKF,0xF800); // Experimenting with highest clock settings
   HAL_Delay(1);
   await_data_request();
 
   // Now you can set high speed SPI clock
   //SPI configuration
   ////8 bit master mode, CKE=1, CKP=0
-  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_8);       //4.5 MHz
+  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_8);       //9 MHz
 
   printf("VS1003 Set\r\n");
   VS1003_printDetails();
@@ -753,6 +754,7 @@ static void VS1003_startPlaying(void) {
 }
 
 static void VS1003_stopPlaying(void) {
+  spiram_clear_ringbuffer();
   VS1003_sdi_send_zeroes(2048);
   memset(vsBuffer, 0x00, sizeof(vsBuffer));
 }
@@ -902,6 +904,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 				struct pbuf* ptr = p;
 				do {
 					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+					if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
 					ptr = ptr->next;
 				} while (ptr);
 				args->timer = millis();
@@ -1010,6 +1013,7 @@ void VS1003_play_dir (const char* url) {
 }
 
 void VS1003_stop(void) {
+  err_t res;
   //Can be stopped only if it is actually playing
   switch (StreamState) {
 	  case STREAM_HTTP_BEGIN:
@@ -1018,8 +1022,12 @@ void VS1003_stop(void) {
 	  case STREAM_HTTP_PROCESS_HEADER:
 	  case STREAM_HTTP_FILL_BUFFER:
 	  case STREAM_HTTP_GET_DATA:
-		  StreamState = STREAM_HTTP_CLOSE;
-		  ReconnectStrategy = RECONNECT_IMMEDIATELY;
+		  res = tcp_close(VS_Socket);
+		  if (res != ERR_OK) {
+			  tcp_abort(VS_Socket);
+		  }
+		  VS_Socket = NULL;
+		  StreamState = STREAM_HOME;
 		  break;
 	  case STREAM_FILE_GET_DATA:
 		  f_close(&fsrc);

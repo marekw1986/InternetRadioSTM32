@@ -4,9 +4,11 @@ Internet radio based on STM32F107
 ### Tasks
 - [ ] Check SPI of VS1003
   - [ ] Ensure that increasing speed after initial config is done right
-  - [ ] Check if it is possible to increase VS1003 SPI speed
+  - [x] Check if it is possible to increase VS1003 SPI speed
 - [ ] Remove old circular buffer
 - [ ] Use heap for header buffer
+- [ ] Feed VS1003 while saving received data (crucial for streaming at higher bitrates)
   
 ### Completed Column ✓
 - [x] Move audio circular buffer back to SPI RAM
+- [x] Add button library

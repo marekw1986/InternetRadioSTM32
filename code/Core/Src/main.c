@@ -34,6 +34,7 @@
 #include "user_diskio.h"
 #include "sd.h"
 #include "spiram.h"
+#include "buttons.h"
 #include "lwip/apps/lwiperf.h"
 /* USER CODE END Includes */
 
@@ -80,6 +81,7 @@ void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
 void usb_write (void);
+void next_callback(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -97,6 +99,8 @@ int main(void)
   uint32_t timer = 0;
   uint32_t one_time_timer = 0;
   FRESULT res;
+
+  static button_t next_btn;
   //uint8_t buffer[64];
   /* USER CODE END 1 */
 
@@ -148,6 +152,7 @@ int main(void)
   VS1003_setLoop(TRUE);
   //VS1003_play_dir("1:/test");
   one_time_timer = millis();
+  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -184,6 +189,7 @@ int main(void)
 //	}
 	//disk_timerproc();
 
+	button_handle(&next_btn);
 	VS1003_handle();
 	MX_LWIP_Process();
     /* USER CODE END WHILE */
@@ -532,6 +538,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : NEXT_BTN_Pin */
+  GPIO_InitStruct.Pin = NEXT_BTN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(NEXT_BTN_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : SPIRAM_CS_Pin */
   GPIO_InitStruct.Pin = SPIRAM_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -597,6 +609,11 @@ void usb_write (void) {
     }
     f_puts("To jest test.\n", &file);
     f_close(&file);
+}
+
+void next_callback (void) {
+	printf("Next button pressed\r\n");
+	VS1003_play_next_http_stream_from_list();
 }
 
 /* USER CODE END 4 */
