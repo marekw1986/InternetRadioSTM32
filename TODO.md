@@ -7,7 +7,9 @@ Internet radio based on STM32F107
   - [x] Check if it is possible to increase VS1003 SPI speed
 - [ ] Remove old circular buffer
 - [ ] Use heap for header buffer
+- [ ] Write better HTTP header parsing function to save RAM
 - [ ] Feed VS1003 while saving received data (crucial for streaming at higher bitrates)
+- [ ] Use FreeRTOS and socket lwIP API
   
 ### Completed Column ✓
 - [x] Move audio circular buffer back to SPI RAM
