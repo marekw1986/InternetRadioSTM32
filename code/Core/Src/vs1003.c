@@ -519,7 +519,7 @@ void VS1003_handle(void) {
 						uint16_t tmp_len = ptr->len;
 						uint8_t* tmp_payload = (uint8_t*)ptr->payload;
 						while(tmp_len) {
-							uint8_t to_write = tmp_len > 32 ? 32 : tmp_len;
+							uint8_t to_write = tmp_len < 32 ? tmp_len : 32;
 							spiram_write_array_to_ringbuffer(tmp_payload, to_write);
 							tmp_len -= to_write;
 							tmp_payload += to_write;
@@ -915,7 +915,7 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 					uint16_t tmp_len = ptr->len;
 					uint8_t* tmp_payload = (uint8_t*)ptr->payload;
 					while(tmp_len) {
-						uint8_t to_write = tmp_len > 32 ? 32 : tmp_len;
+						uint8_t to_write = tmp_len < 32 ? tmp_len : 32;
 						spiram_write_array_to_ringbuffer(tmp_payload, to_write);
 						tmp_len -= to_write;
 						tmp_payload += to_write;
