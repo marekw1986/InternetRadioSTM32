@@ -516,8 +516,17 @@ void VS1003_handle(void) {
 				if ( spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128) ) {
 					struct pbuf* ptr = args.p;
 					do {
-						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-						VS1003_feed_from_buffer();
+						uint16_t tmp_len = ptr->len;
+						uint8_t* tmp_payload = (uint8_t*)ptr->payload;
+						while(tmp_len) {
+							uint8_t to_write = tmp_len > 32 ? 32 : tmp_len;
+							spiram_write_array_to_ringbuffer(tmp_payload, to_write);
+							tmp_len -= to_write;
+							tmp_payload += to_write;
+							VS1003_feed_from_buffer();
+						}
+						//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+						//VS1003_feed_from_buffer();
 						ptr = ptr->next;
 					} while (ptr);
 #ifdef VS1003_MEASURE_STREAM_BITRATE
@@ -903,8 +912,17 @@ static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err
 			if (spiram_get_remaining_space_in_ringbuffer() >= (p->tot_len+128)) {
 				struct pbuf* ptr = p;
 				do {
-					spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-					if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
+					uint16_t tmp_len = ptr->len;
+					uint8_t* tmp_payload = (uint8_t*)ptr->payload;
+					while(tmp_len) {
+						uint8_t to_write = tmp_len > 32 ? 32 : tmp_len;
+						spiram_write_array_to_ringbuffer(tmp_payload, to_write);
+						tmp_len -= to_write;
+						tmp_payload += to_write;
+						if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
+					}
+					//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
+					//if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
 					ptr = ptr->next;
 				} while (ptr);
 				args->timer = millis();
