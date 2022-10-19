@@ -286,14 +286,19 @@ void VS1003_sdi_send_zeroes(int len) {
 
 /****************************************************************************/
 
-feed_ret_t VS1003_feed_from_buffer (void) {
+static feed_ret_t VS1003_feed_from_buffer (void) {
     uint8_t data[32];
 
     if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return FEED_RET_NO_DATA_NEEDED;
-    if (spiram_get_num_of_bytes_in_ringbuffer() < 32) return FEED_RET_BUFFER_EMPTY;
+    do {
+        if (spiram_get_num_of_bytes_in_ringbuffer() < 32) return FEED_RET_BUFFER_EMPTY;
 
-    uint16_t w = spiram_read_array_from_ringbuffer(data, 32);
-    if (w == 32) VS1003_sdi_send_chunk(data, 32);
+        uint16_t w = spiram_read_array_from_ringbuffer(data, 32);
+        if (w == 32) VS1003_sdi_send_chunk(data, 32);
+        asm("nop");
+        asm("nop");
+        asm("nop");
+    } while(HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin));
 
     return FEED_RET_OK;
 }
