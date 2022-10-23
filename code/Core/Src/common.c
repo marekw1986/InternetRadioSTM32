@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 #include "common.h"
 
 
@@ -45,6 +46,7 @@ http_res_t parse_http_headers(char* str, size_t len, uri_t* uri) {
 			return HTTP_HEADER_ERROR;
 		}
 	}
+	return HTTP_HEADER_ERROR;
 }
 
 
