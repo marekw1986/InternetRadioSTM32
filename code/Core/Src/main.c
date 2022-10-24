@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 #include "fatfs.h"
 #include "lwip.h"
 #include "usb_host.h"
@@ -64,6 +65,7 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 
+osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 FATFS FatFS;
 /* USER CODE END PV */
@@ -77,7 +79,7 @@ static void MX_RTC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_CRC_Init(void);
-void MX_USB_HOST_Process(void);
+void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void usb_write (void);
@@ -96,11 +98,6 @@ void next_callback(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint32_t timer = 0;
-  uint32_t one_time_timer = 0;
-  FRESULT res;
-
-  static button_t next_btn;
   //uint8_t buffer[64];
   /* USER CODE END 1 */
 
@@ -122,78 +119,51 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_LWIP_Init();
   MX_USART1_UART_Init();
   MX_FATFS_Init();
-  MX_USB_HOST_Init();
   MX_SPI3_Init();
   MX_RTC_Init();
   MX_SPI1_Init();
   MX_TIM4_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim4);									//Required for delay_us
-  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
-  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 1);
-  HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 0);
-  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
-  HAL_GPIO_WritePin(TST_GPIO_Port, TST_Pin, 1);
-  HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, 1);
 
-  res = f_mount(&FatFS, "0:", 0);
-  if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
-  else {printf("f_mount OK\r\n");}
-
-  spiram_clear();
-
-  VS1003_begin();
-  VS1003_setVolume(0x00);
-  VS1003_setLoop(TRUE);
-  //VS1003_play_dir("1:/test");
-  one_time_timer = millis();
-  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* USER CODE END 2 */
 
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of defaultTask */
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
-		timer = millis();
-		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
-		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
-
-//		sprintf((char *)buffer, "Test RAM-u, %lu", timer/1000);
-//		printf("Writing data to spiram\r\n");
-//		spiram_write_array_to_ringbuffer(buffer, sizeof(buffer));
-//		memset((char *)buffer, 0x00, sizeof(buffer));
-//		spiram_read_array_from_ringbuffer(buffer, sizeof(buffer));
-//		printf("Data from spiram: %s\r\n", buffer);
-
-		//usb_write();
-	}
-
-	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
-		one_time_timer = 0;
-		printf("Connecting to radio\r\n");
-		VS1003_play_next_http_stream_from_list();
-		//VS1003_play_dir("0:/");
-	}
-
-//	if ((uint32_t)(millis()-switch_timer) > 60000) {
-//		switch_timer = millis();
-//		printf("Changing radio\r\n");
-//		VS1003_play_next_http_stream_from_list();
-//	}
-	//disk_timerproc();
-
-	button_handle(&next_btn);
-	VS1003_handle();
-	MX_LWIP_Process();
     /* USER CODE END WHILE */
-    MX_USB_HOST_Process();
 
     /* USER CODE BEGIN 3 */
   }
@@ -617,6 +587,92 @@ void next_callback (void) {
 }
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void const * argument)
+{
+  /* init code for LWIP */
+  MX_LWIP_Init();
+
+  /* init code for USB_HOST */
+  MX_USB_HOST_Init();
+  /* USER CODE BEGIN 5 */
+  uint32_t timer = 0;
+  uint32_t one_time_timer = 0;
+  FRESULT res;
+  static button_t next_btn;
+
+  HAL_TIM_Base_Start(&htim4);									//Required for delay_us
+  HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
+  HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 1);
+  HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 0);
+  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
+  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
+  HAL_GPIO_WritePin(TST_GPIO_Port, TST_Pin, 1);
+  HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, 1);
+
+  res = f_mount(&FatFS, "0:", 0);
+  if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
+  else {printf("f_mount OK\r\n");}
+
+  spiram_clear();
+
+  VS1003_begin();
+  VS1003_setVolume(0x00);
+  VS1003_setLoop(TRUE);
+  //VS1003_play_dir("1:/test");
+  one_time_timer = millis();
+  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
+  /* Infinite loop */
+  for(;;)
+  {
+	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
+		timer = millis();
+		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
+		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
+		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
+	}
+
+	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
+		one_time_timer = 0;
+		printf("Connecting to radio\r\n");
+		VS1003_play_next_http_stream_from_list();
+		//VS1003_play_dir("0:/");
+	}
+
+	button_handle(&next_btn);
+	VS1003_handle();
+	osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

@@ -202,8 +202,6 @@ static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
 static void VS1003_handle_end_of_file (void);
 static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
-static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err);
-static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
 static feed_ret_t VS1003_feed_from_buffer (void);;
 
 /****************************************************************************/
@@ -369,7 +367,7 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_SOCKET_OBTAINED:
 			// Connect to temote server
 			// TODO: register error callback!
-			res = tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
+			//res = tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
 			if (res != ERR_OK) {
 				StreamState = STREAM_HTTP_RECONNECT_WAIT;
 				ReconnectStrategy = RECONNECT_WAIT_LONG;
@@ -407,7 +405,7 @@ void VS1003_handle(void) {
 				args.data_ready = FALSE;
 				vsBuffer_shift = 0;
 				StreamState = STREAM_HTTP_PROCESS_HEADER;
-				tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
+				//tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
 				memset(vsBuffer, 0x00, sizeof(vsBuffer));
 				printf("Header sent\r\n");
 			}
@@ -471,83 +469,9 @@ void VS1003_handle(void) {
             break;
 
         case STREAM_HTTP_FILL_BUFFER:
-			if (args.data_ready && args.p) {
-				if (spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128)) {
-					struct pbuf* ptr = args.p;
-					do {
-						spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-						ptr = ptr->next;
-					} while (ptr);
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-					measured_stream_bitrate_tmp += args.p->tot_len;
-#endif
-					tcp_recved(VS_Socket, args.p->tot_len);
-					pbuf_free(args.p);
-					args.data_ready = FALSE;
-					args.p = NULL;
-					args.timer = millis();
-				}
-				else {
-					//We wont be able to fill buffer in this state
-					StreamState = STREAM_HTTP_GET_DATA;
-					args.timer = millis();
-					break;
-				}
-			}
-        	if (spiram_get_remaining_space_in_ringbuffer() <= 256) {
-        		StreamState = STREAM_HTTP_GET_DATA;
-        		args.timer = millis();
-        		printf("Buffer filled\r\n");
-        		break;
-        	}
-            if ( (uint32_t)(millis()-args.timer) > 5000) {
-                //There was no data in 5 seconds - reconnect
-                printf("Internet radio: no new data timeout - reseting\r\n");
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
-                StreamState = STREAM_HTTP_CLOSE;
-            }
         	break;
 
 		case STREAM_HTTP_GET_DATA:
-			if (args.data_ready && args.p) {
-				if ( spiram_get_remaining_space_in_ringbuffer() >= (args.p->tot_len + 128) ) {
-					struct pbuf* ptr = args.p;
-					do {
-						uint16_t tmp_len = ptr->len;
-						uint8_t* tmp_payload = (uint8_t*)ptr->payload;
-						while(tmp_len) {
-							uint8_t to_write = tmp_len < 32 ? tmp_len : 32;
-							spiram_write_array_to_ringbuffer(tmp_payload, to_write);
-							tmp_len -= to_write;
-							tmp_payload += to_write;
-							VS1003_feed_from_buffer();
-						}
-						//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-						//VS1003_feed_from_buffer();
-						ptr = ptr->next;
-					} while (ptr);
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-					measured_stream_bitrate_tmp += args.p->tot_len;
-#endif
-					tcp_recved(VS_Socket, args.p->tot_len);
-					pbuf_free(args.p);
-					args.data_ready = FALSE;
-					args.p = NULL;
-					args.timer = millis();
-				}
-			}
-            if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
-            	StreamState = STREAM_HTTP_FILL_BUFFER;
-            	args.timer = millis();
-            	//VS1003_stopPlaying();
-            	break;
-            }
-            if ( (uint32_t)(millis()-args.timer) > 5000) {
-                //There was no data in 5 seconds - reconnect
-                printf("Internet radio: no new data timeout - reseting\r\n");
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
-                StreamState = STREAM_HTTP_CLOSE;
-            }
 			break;
 
         case STREAM_FILE_GET_DATA:;
@@ -818,83 +742,6 @@ static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_ar
 	printf("DNS %s resolved\r\n", name);
 	*dst = *ipaddr;
 	StreamState = STREAM_HTTP_OBTAIN_SOCKET;
-}
-
-static err_t connect_cbk(void *arg, struct tcp_pcb *tpcb, err_t err) {
-	printf("Connect cbk\r\n");
-	if (StreamState != STREAM_HTTP_CONNECT_WAIT) {
-		return ERR_OK;	//What value should be used?
-	}
-	printf("Connected successfully\r\n");
-	StreamState = STREAM_HTTP_SEND_REQUEST;
-
-	return ERR_OK;
-}
-
-static err_t recv_cbk(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err) {
-	StreamArgs_t* args = (StreamArgs_t*)arg;
-
-	//printf("Recv cbk, state is %d\r\n", StreamState);
-
-	if (p == NULL) {
-		//connection lost
-		StreamState = STREAM_HTTP_CLOSE;		//STREAM_HTTP_RECONNECT_WAIT?
-		ReconnectStrategy = RECONNECT_WAIT_LONG;
-		printf("Server disconnected - reconnecting\r\n");
-		return ERR_OK;
-	}
-
-	if (err != ERR_ABRT) {
-		if (StreamState == STREAM_HTTP_PROCESS_HEADER)  {
-			args->data_ready = TRUE;
-			args->p = p;
-			VS1003_handle();	// call it to parse data right away
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-			measured_stream_bitrate_tmp += p->tot_len;
-#endif
-			tcp_recved(VS_Socket, p->tot_len);
-			pbuf_free(p);
-			return ERR_OK;
-			//return ERR_INPROGRESS;
-		}
-		else if ( (StreamState == STREAM_HTTP_GET_DATA) || (StreamState == STREAM_HTTP_FILL_BUFFER) ) {
-			if (spiram_get_remaining_space_in_ringbuffer() >= (p->tot_len+128)) {
-				struct pbuf* ptr = p;
-				do {
-					uint16_t tmp_len = ptr->len;
-					uint8_t* tmp_payload = (uint8_t*)ptr->payload;
-					while(tmp_len) {
-						uint8_t to_write = tmp_len < 32 ? tmp_len : 32;
-						spiram_write_array_to_ringbuffer(tmp_payload, to_write);
-						tmp_len -= to_write;
-						tmp_payload += to_write;
-						if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
-					}
-					//spiram_write_array_to_ringbuffer(ptr->payload, ptr->len);
-					//if (StreamState == STREAM_HTTP_GET_DATA) { VS1003_feed_from_buffer(); }
-					ptr = ptr->next;
-				} while (ptr);
-				args->timer = millis();
-				tcp_recved(VS_Socket, p->tot_len);
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-				measured_stream_bitrate_tmp += p->tot_len;
-#endif
-				pbuf_free(p);
-				args->p = NULL;
-				args->data_ready = FALSE;
-				return ERR_OK;
-			}
-			else {
-				args->data_ready = TRUE;
-				args->p = p;
-				return ERR_OK;
-			}
-		}
-
-		tcp_recved(VS_Socket, p->tot_len);
-		pbuf_free(p);
-	}
-	return ERR_OK;
 }
 
 
