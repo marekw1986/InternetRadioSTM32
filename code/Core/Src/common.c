@@ -11,42 +11,97 @@
 #include <stdlib.h>
 #include "common.h"
 
+char working_buffer[512];
+uint16_t http_code = 0;
+
+static http_res_t finalize_http_parsing(uri_t* uri);
+static void analyze_line(char* line, uint16_t len, uri_t* uri);
+
+void prepare_http_parser(void) {
+    http_code = 0;
+    memset(working_buffer, 0x00, sizeof(working_buffer));
+}
+
+static http_res_t finalize_http_parsing(uri_t* uri) {
+    switch(http_code) {
+        case 200:
+        return HTTP_HEADER_OK;
+        break;
+
+        case 301:
+        case 302:
+        if ( (strlen(uri->server) == 0) || (strlen(uri->file) == 0) || (uri->port == 0) ) {
+            return HTTP_HEADER_ERROR;
+        }
+        return HTTP_HEADER_REDIRECTED;
+        break;
+
+        default:
+        return HTTP_HEADER_ERROR;
+        break;
+    }
+
+    return HTTP_HEADER_ERROR;
+}
+
+static void analyze_line(char* line, uint16_t len, uri_t* uri) {
+    char* tok;
+    tok = strstr(line, ": ");
+    if (tok == NULL) { return; }    //Delimiter not found
+    tok[0] = '\0';
+    tok[1] = '\0';
+    tok += 2;
+    if (strncmp(line, "Location", strlen(line)) == 0) {
+        parse_url(tok, strlen(tok), uri);
+    }
+}
 
 http_res_t parse_http_headers(char* str, size_t len, uri_t* uri) {
 	char* tok;
+    char* next_line;
 
 	if (str == NULL) { return HTTP_HEADER_ERROR; }
 
-	if ( (strncmp(str, "HTTP/", 5) != 0) && (strncmp(str, "ICY", 3) != 0) ) {
-		return HTTP_HEADER_ERROR;
-	}
-	tok = strchr(str, ' ');
-	if (tok) {
-		char* code = tok+1;
-		if (code >= str+len) { return HTTP_HEADER_ERROR; }
-		if (strncmp(code, "200 OK", 6) == 0) {
-			return HTTP_HEADER_OK;
-		}
-		else if ( (strncmp(code, "301 Moved Permanently", 21) == 0) || (strncmp(code, "302 Moved Temporarily", 21) == 0) || (strncmp(code, "302 Found", 9) == 0) ) {
-			char* location = strstr(code, "Location: ");
-			if (location) {
-				char* newurl = location+10;
-				if (newurl >= str+len) { return HTTP_HEADER_ERROR; }
-				tok = strstr(newurl, "\r\n");
-				if(!tok || (tok >= str+len)) return HTTP_HEADER_ERROR;
-				*tok = '\0';
-                if (parse_url(newurl, strlen(newurl), uri)) {
-                    return HTTP_HEADER_REDIRECTED;
-                }
-				return HTTP_HEADER_ERROR;
-			}
-		}
-		else {
-			printf("Unsupported code\r\n");
-			return HTTP_HEADER_ERROR;
-		}
-	}
-	return HTTP_HEADER_ERROR;
+    strncat(working_buffer, str, len);
+
+    tok = strstr(working_buffer, "\r\n");
+    if (!tok) {
+        //There is no complete line. Return to continue later.
+        return HTTP_HEADER_IN_PROGRESS;
+    }
+    if (tok > working_buffer+sizeof(working_buffer)-1) { return HTTP_HEADER_ERROR; }
+    tok[0] = '\0';
+    tok[1] = '\0';
+    next_line = tok + 2;
+    //printf("Current line: %s\r\n", working_buffer);
+
+    if (strlen(working_buffer) == 0) {
+        return finalize_http_parsing(uri);
+    }
+
+	if (http_code == 0) {
+        //First line is not parsed
+        if ( (strncmp(working_buffer, "HTTP/", 5) == 0) || (strncmp(str, "ICY", 3) == 0) ) {
+            tok = strchr(working_buffer, ' ');
+            if (tok == NULL) { return HTTP_HEADER_ERROR; }
+            tok++;
+            http_code = atoi(tok);
+            if (http_code == 0) { return HTTP_HEADER_ERROR; }
+            //Now we begin parsing parameters, so clean uri
+            memset(uri, 0x00, sizeof(uri_t));
+        }
+    }
+    else {
+        //First line already parsed, parsing next lines
+        analyze_line(working_buffer, sizeof(working_buffer)-1, uri);
+    }
+
+    strncpy(working_buffer, next_line, sizeof(working_buffer)-1);
+    if (memcmp(working_buffer, "\r\n", 2) == 0) {
+        return finalize_http_parsing(uri);
+    }
+
+    return HTTP_HEADER_IN_PROGRESS;
 }
 
 

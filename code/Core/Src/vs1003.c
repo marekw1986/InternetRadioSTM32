@@ -91,11 +91,6 @@ const char* internet_radios[] = {
     "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
 };
 
-#define VS_BUFFER_SIZE  8192
-
-static uint8_t vsBuffer[VS_BUFFER_SIZE];
-static uint16_t vsBuffer_shift = 0;
-
 #ifdef VS1003_MEASURE_STREAM_BITRATE
 static uint32_t measured_stream_bitrate_tmp = 0;
 static uint32_t measured_stream_bitrate = 0;
@@ -303,7 +298,7 @@ void VS1003_handle(void) {
 	err_t res;
 	FRESULT fres;
 	unsigned int br;
-	uint8_t tmpbuf[32];
+	uint8_t data[32];
 #ifdef VS1003_MEASURE_STREAM_BITRATE
 	static uint32_t measure_stream_bitrate_timer = 0;
 #endif
@@ -403,10 +398,9 @@ void VS1003_handle(void) {
 			if (res == ERR_OK) {
 				args.timer = millis();
 				args.data_ready = FALSE;
-				vsBuffer_shift = 0;
 				StreamState = STREAM_HTTP_PROCESS_HEADER;
 				//tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
-				memset(vsBuffer, 0x00, sizeof(vsBuffer));
+				spiram_clear_ringbuffer();
 				printf("Header sent\r\n");
 			}
 			else {
@@ -417,48 +411,32 @@ void VS1003_handle(void) {
 			break;
 
         case STREAM_HTTP_PROCESS_HEADER:;
-        	if (args.data_ready) {
-    			to_load = (((VS_BUFFER_SIZE - vsBuffer_shift) >= args.p->tot_len) ? args.p->tot_len : (VS_BUFFER_SIZE-vsBuffer_shift));
-    			w = pbuf_copy_partial(args.p, (void*)&vsBuffer[vsBuffer_shift], to_load, 0);
-    			//tcp_recved(VS_Socket, w);
-    			//pbuf_free(args.p);
-    			vsBuffer_shift += w;
-    			if (vsBuffer_shift >= VS_BUFFER_SIZE) {
-    				vsBuffer_shift = 0;
-    			}
-    			vsBuffer[vsBuffer_shift] = '\0';
-				char* tok = strstr((char*)vsBuffer, "\r\n\r\n");
-	            if (tok) {
-	                tok[2] = '\0';
-	                tok[3] = '\0';
-	                printf((const char*)vsBuffer);
-	                http_res_t http_result = parse_http_headers((char*)vsBuffer, strlen((char*)vsBuffer), &uri);
-	                switch (http_result) {
-	                    case HTTP_HEADER_ERROR:
-	                        printf("Parsing headers error\r\n");
-	                        ReconnectStrategy = RECONNECT_WAIT_LONG;
-	                        StreamState = STREAM_HTTP_CLOSE;
-	                        break;
-	                    case HTTP_HEADER_OK:
-	                        printf("It is 200 OK\r\n");
-	                        args.timer = millis();
-	                        vsBuffer_shift = 0;
-	                        StreamState = STREAM_HTTP_FILL_BUFFER;		//was STREAM_HTTP_GET_DATA
-	                        VS1003_startPlaying();
-	                       // StreamState = STREAM_HTTP_CLOSE;	//TEMP
-	                        //ReconnectStrategy = RECONNECT_WAIT_LONG;	//TEMP
-	                        break;
-	                    case HTTP_HEADER_REDIRECTED:
-	                        printf("Stream redirected\r\n");
-	                        ReconnectStrategy = RECONNECT_IMMEDIATELY;
-	                        StreamState = STREAM_HTTP_CLOSE;
-	                        break;
-	                    default:
-	                        break;
-	                }
-	            }
-	            args.data_ready = FALSE;
-        	}
+        w = 1 /*TCPGetArray(VS_Socket, data, 32)*/;		//TODO
+        if (w) {
+            http_res_t http_result = parse_http_headers((char*)data, w, &uri);
+            switch (http_result) {
+                case HTTP_HEADER_ERROR:
+                    printf("Parsing headers error\r\n");
+                    ReconnectStrategy = RECONNECT_WAIT_LONG;
+                    StreamState = STREAM_HTTP_CLOSE;
+                    break;
+                case HTTP_HEADER_OK:
+                    printf("It is 200 OK\r\n");
+                    args.timer = millis();
+                    StreamState = STREAM_HTTP_FILL_BUFFER;     //STREAM_HTTP_GET_DATA
+                    VS1003_startPlaying();
+                    break;
+                case HTTP_HEADER_REDIRECTED:
+                    printf("Stream redirected\r\n");
+                    ReconnectStrategy = RECONNECT_IMMEDIATELY;
+                    StreamState = STREAM_HTTP_CLOSE;
+                    break;
+                case HTTP_HEADER_IN_PROGRESS:
+                    break;
+                default:
+                    break;
+            }
+        }
 
             if ( (uint32_t)(millis()-args.timer) > 1000) {
                 //There was no data in 1 second - reconnect
@@ -476,9 +454,9 @@ void VS1003_handle(void) {
 
         case STREAM_FILE_GET_DATA:;
         if (spiram_get_remaining_space_in_ringbuffer() > 128) {
-			fres = f_read(&fsrc, tmpbuf, 32, &br);
+			fres = f_read(&fsrc, data, 32, &br);
 			if ( fres == FR_OK ) {
-				spiram_write_array_to_ringbuffer(tmpbuf, br);
+				spiram_write_array_to_ringbuffer(data, br);
 				if (br < 32) { VS1003_handle_end_of_file(); }
 			}
         }
@@ -491,9 +469,9 @@ void VS1003_handle(void) {
         if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
             //buffer empty
             while (spiram_get_remaining_space_in_ringbuffer() > 128) {
-                fres = f_read(&fsrc, tmpbuf, 32, &br);
+                fres = f_read(&fsrc, data, 32, &br);
                 if (fres == FR_OK) {
-                	spiram_write_array_to_ringbuffer(tmpbuf, 32);
+                	spiram_write_array_to_ringbuffer(data, 32);
                     if (br < 32) { VS1003_handle_end_of_file(); }
                 }
             }
@@ -686,7 +664,7 @@ static void VS1003_startPlaying(void) {
 static void VS1003_stopPlaying(void) {
   spiram_clear_ringbuffer();
   VS1003_sdi_send_zeroes(2048);
-  memset(vsBuffer, 0x00, sizeof(vsBuffer));
+  spiram_clear_ringbuffer();
 }
 
 static uint8_t VS1003_SPI_transfer(uint8_t outB) {

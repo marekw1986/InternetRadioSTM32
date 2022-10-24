@@ -20,8 +20,9 @@ typedef struct {
 	uint16_t port;
 } uri_t;
 
-typedef enum {HTTP_HEADER_ERROR = 0, HTTP_HEADER_OK, HTTP_HEADER_REDIRECTED} http_res_t;
+typedef enum {HTTP_HEADER_ERROR = 0, HTTP_HEADER_IN_PROGRESS, HTTP_HEADER_OK, HTTP_HEADER_REDIRECTED} http_res_t;
 
+void prepare_http_parser(void);
 http_res_t parse_http_headers(char* str, size_t len, uri_t* uri);
 uint8_t parse_url (const char* str, size_t len, uri_t* uri);
 
