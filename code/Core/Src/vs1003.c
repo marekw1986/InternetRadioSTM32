@@ -196,7 +196,7 @@ static uint8_t VS1003_SPI_transfer(uint8_t outB);
 static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
 static void VS1003_handle_end_of_file (void);
-static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
+//static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 static feed_ret_t VS1003_feed_from_buffer (void);;
 
 /****************************************************************************/
@@ -292,9 +292,8 @@ static feed_ret_t VS1003_feed_from_buffer (void) {
 
 void VS1003_handle(void) {
 	static StreamArgs_t args = {0, NULL, FALSE};
-	static ip_addr_t server_addr;
+//	static ip_addr_t server_addr;
 	uint16_t w = 0;
-	uint16_t to_load = 0;
 	err_t res;
 	FRESULT fres;
 	unsigned int br;
@@ -313,7 +312,7 @@ void VS1003_handle(void) {
 			//clear circular buffer
 			spiram_clear_ringbuffer();
 			//We start with getting address from DNS
-			res = dns_gethostbyname(uri.server, &server_addr, dns_cbk, (void*)&server_addr);
+			res = ERR_OK; //dns_gethostbyname(uri.server, &server_addr, dns_cbk, (void*)&server_addr);
 			switch (res) {
 				case ERR_OK:
 					//We already have valid address - proceed
@@ -362,7 +361,7 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_SOCKET_OBTAINED:
 			// Connect to temote server
 			// TODO: register error callback!
-			//res = tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
+			res = ERR_OK; //tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
 			if (res != ERR_OK) {
 				StreamState = STREAM_HTTP_RECONNECT_WAIT;
 				ReconnectStrategy = RECONNECT_WAIT_LONG;
@@ -713,14 +712,14 @@ static void VS1003_handle_end_of_file (void) {
     }
 }
 
-static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
-	ip_addr_t* dst = (ip_addr_t*)callback_arg;
-
-	if (StreamState != STREAM_HTTP_WAIT_DNS) return;
-	printf("DNS %s resolved\r\n", name);
-	*dst = *ipaddr;
-	StreamState = STREAM_HTTP_OBTAIN_SOCKET;
-}
+//static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg) {
+//	ip_addr_t* dst = (ip_addr_t*)callback_arg;
+//
+//	if (StreamState != STREAM_HTTP_WAIT_DNS) return;
+//	printf("DNS %s resolved\r\n", name);
+//	*dst = *ipaddr;
+//	StreamState = STREAM_HTTP_OBTAIN_SOCKET;
+//}
 
 
 void VS1003_play_next_audio_file_from_directory (void) {

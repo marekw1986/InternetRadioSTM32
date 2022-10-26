@@ -65,7 +65,7 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 
-osThreadId defaultTaskHandle;
+osThreadId mainTaskHandle;
 /* USER CODE BEGIN PV */
 FATFS FatFS;
 /* USER CODE END PV */
@@ -79,7 +79,7 @@ static void MX_RTC_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_CRC_Init(void);
-void StartDefaultTask(void const * argument);
+void StartMainTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void usb_write (void);
@@ -127,7 +127,7 @@ int main(void)
   MX_TIM4_Init();
   MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start(&htim4);									//Required for delay_us
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -147,9 +147,9 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* definition and creation of mainTask */
+  osThreadDef(mainTask, StartMainTask, osPriorityLow, 0, 512);
+  mainTaskHandle = osThreadCreate(osThread(mainTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -588,14 +588,14 @@ void next_callback (void) {
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_StartMainTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
+  * @brief  Function implementing the mainTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_StartMainTask */
+void StartMainTask(void const * argument)
 {
   /* init code for LWIP */
   MX_LWIP_Init();
@@ -603,12 +603,13 @@ void StartDefaultTask(void const * argument)
   /* init code for USB_HOST */
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
-  uint32_t timer = 0;
-  uint32_t one_time_timer = 0;
-  FRESULT res;
-  static button_t next_btn;
+//  static uint32_t timer = 0;
+//  static uint32_t one_time_timer = 0;
+  static FRESULT res;
+//  static button_t next_btn;
 
-  HAL_TIM_Base_Start(&htim4);									//Required for delay_us
+  printf("Starting default task\r\n");
+
   HAL_GPIO_WritePin(SPIRAM_CS_GPIO_Port, SPIRAM_CS_Pin, 1);
   HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, 1);
   HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 0);
@@ -620,34 +621,25 @@ void StartDefaultTask(void const * argument)
   res = f_mount(&FatFS, "0:", 0);
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
+  osDelay(1000);
 
   spiram_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  //VS1003_play_dir("1:/test");
-  one_time_timer = millis();
-  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
+  osDelay(1000);
+  VS1003_play_dir("0:/");
+//  one_time_timer = millis();
+//  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */
   for(;;)
   {
-	if ( ((uint32_t)(millis()-timer)) > 1000 ) {
-		timer = millis();
-		printf("Minelo %lu sekund od startu...\r\n", timer/1000);
-		printf("SPI RAM buffer: %lu bytes free, dw speed: %ld kB/s\r\n", spiram_get_remaining_space_in_ringbuffer(), VS1003_get_stream_bitrate()/1024);
-		HAL_GPIO_TogglePin(TST_GPIO_Port, TST_Pin);
-	}
+//	printf("Heartbeat\r\n");
 
-	if (one_time_timer && ((uint32_t)(millis()-one_time_timer)>15000) ) {
-		one_time_timer = 0;
-		printf("Connecting to radio\r\n");
-		VS1003_play_next_http_stream_from_list();
-		//VS1003_play_dir("0:/");
-	}
-
-	button_handle(&next_btn);
+//	button_handle(&next_btn);
 	VS1003_handle();
+//	usb_write();
 	osDelay(1);
   }
   /* USER CODE END 5 */
