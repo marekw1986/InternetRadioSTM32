@@ -148,7 +148,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of mainTask */
-  osThreadDef(mainTask, StartMainTask, osPriorityLow, 0, 512);
+  osThreadDef(mainTask, StartMainTask, osPriorityNormal, 0, 512);
   mainTaskHandle = osThreadCreate(osThread(mainTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
