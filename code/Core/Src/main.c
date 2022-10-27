@@ -621,15 +621,14 @@ void StartMainTask(void const * argument)
   res = f_mount(&FatFS, "0:", 0);
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
-  osDelay(1000);
 
   spiram_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  osDelay(1000);
   VS1003_play_dir("0:/");
+//  VS1003_play_next_http_stream_from_list();
 //  one_time_timer = millis();
 //  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */

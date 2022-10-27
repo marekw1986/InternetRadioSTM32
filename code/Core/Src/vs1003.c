@@ -14,7 +14,8 @@
 #include "time.h"
 #include "stm32f1xx_hal.h"
 #include "lwip/tcp.h"
-#include "lwip/dns.h"
+#include "lwip/sockets.h"
+#include "lwip/netdb.h"
 #include "lwip.h"
 #include "ff.h"
 #include "spiram.h"
@@ -99,7 +100,8 @@ static uint32_t measured_stream_bitrate = 0;
 FIL fsrc;
 DIR vsdir;
 
-struct tcp_pcb* VS_Socket;
+struct tcp_pcb* VS_Socket;	//TEMP
+int sock;
 
 static uri_t uri;
 static uint8_t loop_flag = FALSE;
@@ -108,11 +110,6 @@ static uint8_t dir_flag = FALSE;
 typedef enum {
     STREAM_HOME = 0,
     STREAM_HTTP_BEGIN,
-	STREAM_HTTP_WAIT_DNS,
-	STREAM_HTTP_OBTAIN_SOCKET,
-    STREAM_HTTP_SOCKET_OBTAINED,
-	STREAM_HTTP_CONNECT_WAIT,
-    STREAM_HTTP_SEND_REQUEST,
     STREAM_HTTP_PROCESS_HEADER,
 	STREAM_HTTP_FILL_BUFFER,
     STREAM_HTTP_GET_DATA,
@@ -291,7 +288,10 @@ static feed_ret_t VS1003_feed_from_buffer (void) {
 /****************************************************************************/
 
 void VS1003_handle(void) {
+	struct hostent* remoteHost;
+	struct in_addr addr;
 	static StreamArgs_t args = {0, NULL, FALSE};
+	int ret;
 //	static ip_addr_t server_addr;
 	uint16_t w = 0;
 	err_t res;
@@ -311,107 +311,63 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_BEGIN:
 			//clear circular buffer
 			spiram_clear_ringbuffer();
+
 			//We start with getting address from DNS
-			res = ERR_OK; //dns_gethostbyname(uri.server, &server_addr, dns_cbk, (void*)&server_addr);
-			switch (res) {
-				case ERR_OK:
-					//We already have valid address - proceed
-					printf("DNS address already resolved\r\n");
-					StreamState = STREAM_HTTP_OBTAIN_SOCKET;
-					break;
-				case ERR_INPROGRESS:
-					//We need to resolve address - wait
-					printf("Resolving DNS\r\n");
-					StreamState = STREAM_HTTP_WAIT_DNS;
-					args.timer = millis();
-					break;
-				case ERR_ARG:
-				default:
-					//Resolve error - end here
-					printf("DNS resolve error\r\n");
-					StreamState = STREAM_HOME;
-					break;
+			remoteHost = lwip_gethostbyname(uri.server);
+			if (remoteHost == NULL) {
+				printf("Can't resolve address %s\r\n", uri.server);
+				StreamState = STREAM_HOME;
+				break;
 			}
-			break;
-
-		case STREAM_HTTP_WAIT_DNS:
-			if ((uint32_t)(millis()-args.timer) > 5000) {
-				printf("DNS timeout\r\n");
-				StreamState = STREAM_HTTP_RECONNECT_WAIT;
-				ReconnectStrategy = RECONNECT_WAIT_LONG;
+			printf("Address %s has been resolved\r\n", uri.server);
+			if (remoteHost->h_addrtype != AF_INET) {
+				printf("It is not AF_INET address\r\n");
+				StreamState = STREAM_HOME;
+				break;
 			}
-			break;
+			printf("It is AF_INET\r\n");
+			addr.s_addr = *(u_long *) remoteHost->h_addr_list[0];
+			printf("IPv4 Address: %s\r\n", inet_ntoa(addr));
 
-        case STREAM_HTTP_OBTAIN_SOCKET:
-			// Create new socket
-            //VS_Socket = TCPOpen((DWORD)&uri.server[0], TCP_OPEN_RAM_HOST, uri.port, TCP_PURPOSE_GENERIC_TCP_CLIENT);
-            VS_Socket = tcp_new();
-
-			if(VS_Socket == NULL) {
-                StreamState=STREAM_HTTP_RECONNECT_WAIT;
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
+			//Acquire socket
+        	sock = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if(sock == 0) {
+				printf("Can't acquire socket\r\n");
+                StreamState=STREAM_HOME;
 				break;
             }
+			printf("Socket acquired\r\n");
 
-			tcp_arg(VS_Socket, (void*)&args);
-			StreamState=STREAM_HTTP_SOCKET_OBTAINED;
-			args.timer = millis();
-			break;
-
-		case STREAM_HTTP_SOCKET_OBTAINED:
-			// Connect to temote server
-			// TODO: register error callback!
-			res = ERR_OK; //tcp_connect(VS_Socket, &server_addr, uri.port, connect_cbk);
-			if (res != ERR_OK) {
-				StreamState = STREAM_HTTP_RECONNECT_WAIT;
-				ReconnectStrategy = RECONNECT_WAIT_LONG;
-				printf("Can't connect to server\r\n");
+			//Connect
+			ret = lwip_connect(sock, (const struct sockaddr*)&addr, sizeof(struct sockaddr));
+			if (ret == 0) {
+				printf("Can't connect\r\n");
+				StreamState = STREAM_HOME;
 				break;
 			}
+			printf("Connected\r\n");
 
-            StreamState = STREAM_HTTP_CONNECT_WAIT;
-            args.timer = millis();
-            break;
-
-		case STREAM_HTTP_CONNECT_WAIT:
-			if ((uint32_t)(millis()-args.timer) > 5000) {
-				StreamState = STREAM_HTTP_CLOSE;
-				ReconnectStrategy = RECONNECT_WAIT_LONG;
-				printf("Connect timeout\r\n");
-			}
-			break;
-
-        case STREAM_HTTP_SEND_REQUEST:
-			// Place the application protocol data into the transmit buffer.
-
-        	tcp_write(VS_Socket, (const void*)"GET ", 4, 0);
-			tcp_write(VS_Socket, (const void*)uri.file, strlen(uri.file), 0);
-			tcp_write(VS_Socket, (const void*)" HTTP/1.0\r\nHost: ", 17, 0);
-			tcp_write(VS_Socket, (const void*)uri.server, strlen(uri.server), 0);
-			tcp_write(VS_Socket, (const void*)"\r\nConnection: keep-alive\r\n\r\n", 28, 0);
-
+			//Send request
+        	ret = lwip_send(sock, (void*)"GET ", 4, 0);
+        	printf("First ret: %d\r\n", ret);
+			ret = lwip_send(sock, (void*)uri.file, strlen(uri.file), 0);
+			printf("Second ret: %d\r\n", ret);
+			ret = lwip_send(sock, (void*)" HTTP/1.0\r\nHost: ", 17, 0);
+			printf("Third ret: %d\r\n", ret);
+			ret = lwip_send(sock, (void*)uri.server, strlen(uri.server), 0);
+			printf("Fourth ret: %d\r\n", ret);
+			ret = lwip_send(sock, (void*)"\r\nConnection: keep-alive\r\n\r\n", 28, 0);
+			printf("Fifth ret: %d\r\n", ret);
             printf("Sending headers\r\n");
 
-			// Send the packet
-			res = tcp_output(VS_Socket);
-			if (res == ERR_OK) {
-				args.timer = millis();
-				args.data_ready = FALSE;
-				StreamState = STREAM_HTTP_PROCESS_HEADER;
-				//tcp_recv(VS_Socket, recv_cbk);		//Register receive callback
-				spiram_clear_ringbuffer();
-				printf("Header sent\r\n");
-			}
-			else {
-				StreamState = STREAM_HTTP_CLOSE;
-				ReconnectStrategy = RECONNECT_WAIT_LONG;
-				printf("Can't send HTTP header, reconnecting\r\n");
-			}
+            lwip_close(sock);	//TEMP
+
+            StreamState = STREAM_HOME;
 			break;
 
         case STREAM_HTTP_PROCESS_HEADER:;
-        w = 1 /*TCPGetArray(VS_Socket, data, 32)*/;		//TODO
-        if (w) {
+        w = lwip_recv(sock, data, 32, 0);
+        if (w > 0) {
             http_res_t http_result = parse_http_headers((char*)data, w, &uri);
             switch (http_result) {
                 case HTTP_HEADER_ERROR:
@@ -533,7 +489,7 @@ void VS1003_begin(void) {
   // Boot VS1003
   printf("Booting VS1003...\r\n");
 
-  HAL_Delay(1);
+  osDelay(1);
 
   // init SPI slow mode
   //SPI configuration
@@ -549,7 +505,7 @@ void VS1003_begin(void) {
   /* Declick: Slow sample rate for slow analog part startup */
   VS1003_write_register(SCI_AUDATA,10);
 
-  HAL_Delay(100);
+  osDelay(100);
 
   /* Switch on the analog parts */
   VS1003_write_register(SCI_VOL,0xfefe); // VOL
@@ -562,10 +518,10 @@ void VS1003_begin(void) {
   
   // soft reset
   VS1003_write_register(SCI_MODE, (1 << SM_SDINEW) | (1 << SM_RESET) );
-  HAL_Delay(1);
+  osDelay(1);
   await_data_request();
   VS1003_write_register(SCI_CLOCKF,0xF800); // Experimenting with highest clock settings
-  HAL_Delay(1);
+  osDelay(1);
   await_data_request();
 
   // Now you can set high speed SPI clock
@@ -808,8 +764,6 @@ void VS1003_stop(void) {
   //Can be stopped only if it is actually playing
   switch (StreamState) {
 	  case STREAM_HTTP_BEGIN:
-	  case STREAM_HTTP_SOCKET_OBTAINED:
-	  case STREAM_HTTP_SEND_REQUEST:
 	  case STREAM_HTTP_PROCESS_HEADER:
 	  case STREAM_HTTP_FILL_BUFFER:
 	  case STREAM_HTTP_GET_DATA:
