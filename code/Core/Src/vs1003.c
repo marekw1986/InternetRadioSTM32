@@ -331,8 +331,8 @@ void VS1003_handle(void) {
 
 			//Acquire socket
         	sock = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if(sock == 0) {
-				printf("Can't acquire socket\r\n");
+			if(sock == -1) {
+				printf("Can't acquire socket. Errno: %d\r\n", errno);
                 StreamState=STREAM_HOME;
 				break;
             }
@@ -340,8 +340,8 @@ void VS1003_handle(void) {
 
 			//Connect
 			ret = lwip_connect(sock, (const struct sockaddr*)&addr, sizeof(struct sockaddr));
-			if (ret == 0) {
-				printf("Can't connect\r\n");
+			if (ret == -1) {
+				printf("Can't connect. Errno: %d\r\n", errno);
 				StreamState = STREAM_HOME;
 				break;
 			}
