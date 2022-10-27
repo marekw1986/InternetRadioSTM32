@@ -289,7 +289,8 @@ static feed_ret_t VS1003_feed_from_buffer (void) {
 
 void VS1003_handle(void) {
 	struct hostent* remoteHost;
-	struct in_addr addr;
+	//struct in_addr addr;
+	struct sockaddr_in addr;
 	static StreamArgs_t args = {0, NULL, FALSE};
 	int ret;
 //	static ip_addr_t server_addr;
@@ -311,6 +312,7 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_BEGIN:
 			//clear circular buffer
 			spiram_clear_ringbuffer();
+			memset(&addr, 0x00, sizeof(struct sockaddr_in));
 
 			//We start with getting address from DNS
 			remoteHost = lwip_gethostbyname(uri.server);
@@ -326,8 +328,10 @@ void VS1003_handle(void) {
 				break;
 			}
 			printf("It is AF_INET\r\n");
-			addr.s_addr = *(u_long *) remoteHost->h_addr_list[0];
-			printf("IPv4 Address: %s\r\n", inet_ntoa(addr));
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(uri.port);
+			addr.sin_addr.s_addr = *(u_long *) remoteHost->h_addr_list[0];
+			printf("IPv4 Address: %s\r\n", inet_ntoa(addr.sin_addr));
 
 			//Acquire socket
         	sock = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -339,7 +343,7 @@ void VS1003_handle(void) {
 			printf("Socket acquired\r\n");
 
 			//Connect
-			ret = lwip_connect(sock, (const struct sockaddr*)&addr, sizeof(struct sockaddr));
+			ret = lwip_connect(sock, (struct sockaddr*)&addr, sizeof(struct sockaddr));
 			if (ret == -1) {
 				printf("Can't connect. Errno: %d\r\n", errno);
 				StreamState = STREAM_HOME;
@@ -360,48 +364,41 @@ void VS1003_handle(void) {
 			printf("Fifth ret: %d\r\n", ret);
             printf("Sending headers\r\n");
 
-            lwip_close(sock);	//TEMP
-
-            StreamState = STREAM_HOME;
+            StreamState = STREAM_HTTP_PROCESS_HEADER;
 			break;
 
         case STREAM_HTTP_PROCESS_HEADER:;
-        w = lwip_recv(sock, data, 32, 0);
-        if (w > 0) {
-            http_res_t http_result = parse_http_headers((char*)data, w, &uri);
-            switch (http_result) {
-                case HTTP_HEADER_ERROR:
-                    printf("Parsing headers error\r\n");
-                    ReconnectStrategy = RECONNECT_WAIT_LONG;
-                    StreamState = STREAM_HTTP_CLOSE;
-                    break;
-                case HTTP_HEADER_OK:
-                    printf("It is 200 OK\r\n");
-                    args.timer = millis();
-                    StreamState = STREAM_HTTP_FILL_BUFFER;     //STREAM_HTTP_GET_DATA
-                    VS1003_startPlaying();
-                    break;
-                case HTTP_HEADER_REDIRECTED:
-                    printf("Stream redirected\r\n");
-                    ReconnectStrategy = RECONNECT_IMMEDIATELY;
-                    StreamState = STREAM_HTTP_CLOSE;
-                    break;
-                case HTTP_HEADER_IN_PROGRESS:
-                    break;
-                default:
-                    break;
-            }
-        }
-
-            if ( (uint32_t)(millis()-args.timer) > 1000) {
-                //There was no data in 1 second - reconnect
-                printf("Internet radio: no header timeout - reseting\r\n");
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
-                StreamState = STREAM_HTTP_CLOSE;
-            }
+			w = lwip_recv(sock, data, 32, 0);
+			if (w > 0) {
+				http_res_t http_result = parse_http_headers((char*)data, w, &uri);
+				switch (http_result) {
+					case HTTP_HEADER_ERROR:
+						printf("Parsing headers error\r\n");
+						ReconnectStrategy = RECONNECT_WAIT_LONG;
+						StreamState = STREAM_HTTP_CLOSE;
+						break;
+					case HTTP_HEADER_OK:
+						printf("It is 200 OK\r\n");
+						args.timer = millis();
+						StreamState = STREAM_HTTP_FILL_BUFFER;     //STREAM_HTTP_GET_DATA
+						VS1003_startPlaying();
+						break;
+					case HTTP_HEADER_REDIRECTED:
+						printf("Stream redirected\r\n");
+						ReconnectStrategy = RECONNECT_IMMEDIATELY;
+						StreamState = STREAM_HTTP_CLOSE;
+						break;
+					case HTTP_HEADER_IN_PROGRESS:
+						break;
+					default:
+						break;
+				}
+			}
             break;
 
         case STREAM_HTTP_FILL_BUFFER:
+        	lwip_close(sock);	//TEMP
+        	StreamState = STREAM_HOME;	//TEMP
         	break;
 
 		case STREAM_HTTP_GET_DATA:

@@ -627,8 +627,8 @@ void StartMainTask(void const * argument)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  VS1003_play_dir("0:/");
-//  VS1003_play_next_http_stream_from_list();
+//  VS1003_play_dir("0:/");
+  VS1003_play_next_http_stream_from_list();
 //  one_time_timer = millis();
 //  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */
