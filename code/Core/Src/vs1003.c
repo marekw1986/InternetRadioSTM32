@@ -295,7 +295,6 @@ void VS1003_handle(void) {
 	int ret;
 //	static ip_addr_t server_addr;
 	uint16_t w = 0;
-	err_t res;
 	FRESULT fres;
 	unsigned int br;
 	uint8_t data[32];
@@ -469,9 +468,9 @@ void VS1003_handle(void) {
 		case STREAM_HTTP_CLOSE:
 			// Close the socket so it can be used by other modules
 			// For this application, we wish to stay connected, but this state will still get entered if the remote server decides to disconnect
-			res = tcp_close(VS_Socket);
-			if (res != ERR_OK) break;
-			VS_Socket = NULL;
+			ret = tcp_close(VS_Socket);
+			if (ret == -1) break;
+			//VS_Socket = NULL;
 			printf("Successfully disconnected\r\n");
             VS1003_stopPlaying();
             switch(ReconnectStrategy) {
@@ -792,18 +791,18 @@ void VS1003_play_dir (const char* url) {
 }
 
 void VS1003_stop(void) {
-  err_t res;
+  int ret;
   //Can be stopped only if it is actually playing
   switch (StreamState) {
 	  case STREAM_HTTP_BEGIN:
 	  case STREAM_HTTP_PROCESS_HEADER:
 	  case STREAM_HTTP_FILL_BUFFER:
 	  case STREAM_HTTP_GET_DATA:
-		  res = tcp_close(VS_Socket);
-		  if (res != ERR_OK) {
-			  tcp_abort(VS_Socket);
+		  ret = lwip_close(sock);
+		  if (ret != -1) {
+//			  tcp_abort(VS_Socket);
 		  }
-		  VS_Socket = NULL;
+//		  VS_Socket = NULL;
 		  StreamState = STREAM_HOME;
 		  break;
 	  case STREAM_FILE_GET_DATA:
