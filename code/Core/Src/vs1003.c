@@ -397,11 +397,46 @@ void VS1003_handle(void) {
             break;
 
         case STREAM_HTTP_FILL_BUFFER:
-        	lwip_close(sock);	//TEMP
-        	StreamState = STREAM_HOME;	//TEMP
+            while (spiram_get_remaining_space_in_ringbuffer() > 128) {
+            	w = lwip_recv(sock, data, 32, 0);
+            	if (w > 0) {
+            		args.timer = millis();
+            		spiram_write_array_to_ringbuffer(data, w);
+            	}
+            }
+            if (spiram_get_remaining_space_in_ringbuffer() <= 128) {
+                printf("Buffer filled\r\n");
+                args.timer = millis();
+                StreamState = STREAM_HTTP_GET_DATA;
+                break;
+            }
+            if ( (uint32_t)(millis()-args.timer) > 5000) {
+                //There was no data in 5 seconds - reconnect
+                printf("Internet radio: no new data timeout - reseting\r\n");
+                ReconnectStrategy = RECONNECT_WAIT_LONG;
+                StreamState = STREAM_HTTP_CLOSE;
+            }
         	break;
 
 		case STREAM_HTTP_GET_DATA:
+            while (spiram_get_remaining_space_in_ringbuffer() > 1024) {
+            	w = lwip_recv(sock, data, 32, 0);
+            	if (w > 0) {
+            		args.timer = millis();
+            		spiram_write_array_to_ringbuffer(data, w);
+            	}
+            }
+            if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
+                StreamState = STREAM_HTTP_FILL_BUFFER;
+                args.timer = millis();
+                break;
+            }
+            if ( (uint32_t)(millis()-args.timer) > 5000) {
+                //There was no data in 5 seconds - reconnect
+                printf("Internet radio: no new data timeout - reseting\r\n");
+                ReconnectStrategy = RECONNECT_WAIT_LONG;
+                StreamState = STREAM_HTTP_CLOSE;
+            }
 			break;
 
         case STREAM_FILE_GET_DATA:;
