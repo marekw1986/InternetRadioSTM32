@@ -668,6 +668,7 @@ void StartMainTask(void const * argument)
 void StartVsTask(void const * argument)
 {
   /* USER CODE BEGIN StartVsTask */
+  printf("VS feeding task starting\r\n");
   /* Infinite loop */
   for(;;)
   {
@@ -687,6 +688,7 @@ void StartIoTask(void const * argument)
 {
   /* USER CODE BEGIN StartIoTask */
   static button_t next_btn;
+  printf("I/O task starting\r\n");
   button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */
   for(;;)
