@@ -9,7 +9,7 @@ Internet radio based on STM32F107
   - [x] Implement lwIP socket API
   - [x] Integrate memory friendly HTTP header parser with code
   - [ ] Move VS1003 feeding function to separate task
-  - [ ] Move buttons checking to separate task
+  - [x] Move buttons checking to separate task
 - [ ] Create UI
   - [ ] Add display
   - [ ] Add rotary encoder
