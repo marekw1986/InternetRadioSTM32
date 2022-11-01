@@ -66,6 +66,9 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart1;
 
 osThreadId mainTaskHandle;
+osThreadId feedVsTaskHandle;
+osThreadId ioTaskHandle;
+osMutexId vsRingBufferMutexHandle;
 /* USER CODE BEGIN PV */
 FATFS FatFS;
 /* USER CODE END PV */
@@ -80,6 +83,8 @@ static void MX_SPI1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_CRC_Init(void);
 void StartMainTask(void const * argument);
+void StartVsTask(void const * argument);
+void StartIoTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void usb_write (void);
@@ -130,6 +135,11 @@ int main(void)
   HAL_TIM_Base_Start(&htim4);									//Required for delay_us
   /* USER CODE END 2 */
 
+  /* Create the mutex(es) */
+  /* definition and creation of vsRingBufferMutex */
+  osMutexDef(vsRingBufferMutex);
+  vsRingBufferMutexHandle = osMutexCreate(osMutex(vsRingBufferMutex));
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -150,6 +160,14 @@ int main(void)
   /* definition and creation of mainTask */
   osThreadDef(mainTask, StartMainTask, osPriorityNormal, 0, 512);
   mainTaskHandle = osThreadCreate(osThread(mainTask), NULL);
+
+  /* definition and creation of feedVsTask */
+  osThreadDef(feedVsTask, StartVsTask, osPriorityNormal, 0, 256);
+  feedVsTaskHandle = osThreadCreate(osThread(feedVsTask), NULL);
+
+  /* definition and creation of ioTask */
+  osThreadDef(ioTask, StartIoTask, osPriorityIdle, 0, 256);
+  ioTaskHandle = osThreadCreate(osThread(ioTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -583,6 +601,7 @@ void usb_write (void) {
 
 void next_callback (void) {
 	printf("Next button pressed\r\n");
+	VS1003_stop();
 	VS1003_play_next_http_stream_from_list();
 }
 
@@ -606,7 +625,6 @@ void StartMainTask(void const * argument)
 //  static uint32_t timer = 0;
 //  static uint32_t one_time_timer = 0;
   static FRESULT res;
-//  static button_t next_btn;
 
   printf("Starting default task\r\n");
 
@@ -629,19 +647,54 @@ void StartMainTask(void const * argument)
   VS1003_setLoop(TRUE);
 //  VS1003_play_dir("0:/");
   VS1003_play_next_http_stream_from_list();
-//  one_time_timer = millis();
-//  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */
   for(;;)
   {
 //	printf("Heartbeat\r\n");
-
-//	button_handle(&next_btn);
 	VS1003_handle();
 //	usb_write();
 	osDelay(1);
   }
   /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartVsTask */
+/**
+* @brief Function implementing the feedVsTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartVsTask */
+void StartVsTask(void const * argument)
+{
+  /* USER CODE BEGIN StartVsTask */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartVsTask */
+}
+
+/* USER CODE BEGIN Header_StartIoTask */
+/**
+* @brief Function implementing the ioTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartIoTask */
+void StartIoTask(void const * argument)
+{
+  /* USER CODE BEGIN StartIoTask */
+  static button_t next_btn;
+  button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
+  /* Infinite loop */
+  for(;;)
+  {
+	button_handle(&next_btn);
+    osDelay(20);
+  }
+  /* USER CODE END StartIoTask */
 }
 
 /**
