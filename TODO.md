@@ -6,10 +6,14 @@ Internet radio based on STM32F107
   - [x] Add FreeRTOS to project
   - [x] Test existing libraries
   - [x] Test USB MSD Host and Ethernet
-  - [ ] Implement lwIP socket API
-  - [ ] Integrate memory friendly HTTP header parser with code
+  - [x] Implement lwIP socket API
+  - [x] Integrate memory friendly HTTP header parser with code
   - [ ] Move VS1003 feeding function to separate task
   - [ ] Move buttons checking to separate task
+- [ ] Create UI
+  - [ ] Add display
+  - [ ] Add rotary encoder
+  - [ ] Write basic user interface
   
 ### Completed Column ✓
 - [x] Move audio circular buffer back to SPI RAM
