@@ -11,6 +11,7 @@
 #include "stm32f1xx_hal.h"
 #include "main.h"
 #include "spiram.h"
+#include "time.h"
 
 #define RDMR        5       // Read the Mode Register
 #define WRMR        1       // Write to the Mode Register
@@ -33,7 +34,7 @@ void spiram_init(void) {
     if (HAL_SPI_DeInit(&hspi3) != HAL_OK) {
     	printf("SPIRAM: SPI3 deinit error\r\n");
     }
-	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
     if (HAL_SPI_Init(&hspi3) != HAL_OK) {
     	printf("SPIRAM: SPI3 init error\r\n");
     }

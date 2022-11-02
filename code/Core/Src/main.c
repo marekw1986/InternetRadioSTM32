@@ -640,9 +640,9 @@ void StartMainTask(void const * argument)
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-  VS1003_play_dir("0:/");
+//  VS1003_play_dir("0:/");
 //  VS1003_play_next_http_stream_from_list();
-//  VS1003_play_http_stream("http://an01.cdn.eurozet.pl/ant-waw.mp3");
+  VS1003_play_http_stream("http://stream3.polskieradio.pl:8904/");
   /* Infinite loop */
   for(;;)
   {
