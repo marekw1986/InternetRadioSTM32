@@ -380,7 +380,7 @@ static void MX_SPI3_Init(void)
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -634,15 +634,14 @@ void StartMainTask(void const * argument)
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
-  spiram_init();
   spiram_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
-//  VS1003_play_dir("0:/");
+  VS1003_play_dir("0:/");
 //  VS1003_play_next_http_stream_from_list();
-  VS1003_play_http_stream("http://an01.cdn.eurozet.pl/ant-waw.mp3");
+//  VS1003_play_http_stream("http://an01.cdn.eurozet.pl/ant-waw.mp3");
   /* Infinite loop */
   for(;;)
   {
