@@ -66,9 +66,8 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart1;
 
 osThreadId mainTaskHandle;
-osThreadId feedVsTaskHandle;
 osThreadId ioTaskHandle;
-osMutexId vsRingBufferMutexHandle;
+osMutexId vsMutexHandle;
 /* USER CODE BEGIN PV */
 FATFS FatFS;
 /* USER CODE END PV */
@@ -83,7 +82,6 @@ static void MX_SPI1_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_CRC_Init(void);
 void StartMainTask(void const * argument);
-void StartVsTask(void const * argument);
 void StartIoTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -136,9 +134,9 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Create the mutex(es) */
-  /* definition and creation of vsRingBufferMutex */
-  osMutexDef(vsRingBufferMutex);
-  vsRingBufferMutexHandle = osMutexCreate(osMutex(vsRingBufferMutex));
+  /* definition and creation of vsMutex */
+  osMutexDef(vsMutex);
+  vsMutexHandle = osMutexCreate(osMutex(vsMutex));
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -160,10 +158,6 @@ int main(void)
   /* definition and creation of mainTask */
   osThreadDef(mainTask, StartMainTask, osPriorityNormal, 0, 512);
   mainTaskHandle = osThreadCreate(osThread(mainTask), NULL);
-
-  /* definition and creation of feedVsTask */
-  osThreadDef(feedVsTask, StartVsTask, osPriorityNormal, 0, 256);
-  feedVsTaskHandle = osThreadCreate(osThread(feedVsTask), NULL);
 
   /* definition and creation of ioTask */
   osThreadDef(ioTask, StartIoTask, osPriorityIdle, 0, 256);
@@ -640,41 +634,22 @@ void StartMainTask(void const * argument)
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
+  spiram_init();
   spiram_clear();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
 //  VS1003_play_dir("0:/");
-  VS1003_play_next_http_stream_from_list();
+//  VS1003_play_next_http_stream_from_list();
+  VS1003_play_http_stream("http://an01.cdn.eurozet.pl/ant-waw.mp3");
   /* Infinite loop */
   for(;;)
   {
-//	printf("Heartbeat\r\n");
 	VS1003_handle();
-//	usb_write();
 	osDelay(1);
   }
   /* USER CODE END 5 */
-}
-
-/* USER CODE BEGIN Header_StartVsTask */
-/**
-* @brief Function implementing the feedVsTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartVsTask */
-void StartVsTask(void const * argument)
-{
-  /* USER CODE BEGIN StartVsTask */
-  printf("VS feeding task starting\r\n");
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartVsTask */
 }
 
 /* USER CODE BEGIN Header_StartIoTask */

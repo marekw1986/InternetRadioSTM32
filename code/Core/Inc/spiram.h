@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 
+void spiram_init(void);
 void spiram_clear(void);
 void spiram_writebyte(uint32_t address, uint8_t data);
 uint8_t spiram_readbyte(uint32_t address);

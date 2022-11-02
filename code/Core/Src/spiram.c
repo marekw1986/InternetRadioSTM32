@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "stm32f1xx_hal.h"
 #include "main.h"
 #include "spiram.h"
@@ -26,6 +27,17 @@ extern SPI_HandleTypeDef hspi3;
 
 static uint32_t spiram_ringbuffer_head = 0;
 static uint32_t spiram_ringbuffer_tail = 0;
+
+void spiram_init(void) {
+    // 6. increase speed
+    if (HAL_SPI_DeInit(&hspi3) != HAL_OK) {
+    	printf("SPIRAM: SPI3 deinit error\r\n");
+    }
+	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+    if (HAL_SPI_Init(&hspi3) != HAL_OK) {
+    	printf("SPIRAM: SPI3 init error\r\n");
+    }
+}
 
 static void spiram_setmode(uint8_t mode ) {
 	uint8_t tmp[2] = {WRMR, mode};

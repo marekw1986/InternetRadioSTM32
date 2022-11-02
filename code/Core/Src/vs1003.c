@@ -113,6 +113,7 @@ typedef enum {
     STREAM_HTTP_PROCESS_HEADER,
 	STREAM_HTTP_FILL_BUFFER,
     STREAM_HTTP_GET_DATA,
+	STREAM_FILE_FILL_BUFFER,
     STREAM_FILE_GET_DATA,
     STREAM_HTTP_CLOSE,
     STREAM_HTTP_RECONNECT_WAIT
@@ -402,28 +403,27 @@ void VS1003_handle(void) {
             		args.timer = millis();
             		spiram_write_array_to_ringbuffer(data, w);
             	}
+                if ( (uint32_t)(millis()-args.timer) > 5000) {
+                    //There was no data in 5 seconds - reconnect
+                    printf("Internet radio: no new data timeout - reseting\r\n");
+                    ReconnectStrategy = RECONNECT_WAIT_LONG;
+                    StreamState = STREAM_HTTP_CLOSE;
+                    break;
+                }
             }
-            if (spiram_get_remaining_space_in_ringbuffer() <= 128) {
-                printf("Buffer filled\r\n");
-                args.timer = millis();
-                StreamState = STREAM_HTTP_GET_DATA;
-                break;
-            }
-            if ( (uint32_t)(millis()-args.timer) > 5000) {
-                //There was no data in 5 seconds - reconnect
-                printf("Internet radio: no new data timeout - reseting\r\n");
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
-                StreamState = STREAM_HTTP_CLOSE;
-            }
-        	break;
+			printf("Buffer filled\r\n");
+			args.timer = millis();
+			StreamState = STREAM_HTTP_GET_DATA;
+			break;
 
 		case STREAM_HTTP_GET_DATA:
-            while (spiram_get_remaining_space_in_ringbuffer() > 1024) {
+            while (spiram_get_remaining_space_in_ringbuffer() > 128) {
             	w = lwip_recv(sock, data, 32, 0);
             	if (w > 0) {
             		args.timer = millis();
             		spiram_write_array_to_ringbuffer(data, w);
             	}
+            	if (HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) break;
             }
             if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
                 StreamState = STREAM_HTTP_FILL_BUFFER;
@@ -438,32 +438,42 @@ void VS1003_handle(void) {
             }
 			break;
 
-        case STREAM_FILE_GET_DATA:;
-        if (spiram_get_remaining_space_in_ringbuffer() > 128) {
-			fres = f_read(&fsrc, data, 32, &br);
-			if ( fres == FR_OK ) {
-				spiram_write_array_to_ringbuffer(data, br);
-				if (br < 32) { VS1003_handle_end_of_file(); }
-			}
-        }
-        if (StreamState == STREAM_HOME) {
-            //File had been closed in previous step
-            //due to reaching end of file with loop
-            //and dir flags cleared.
-            break;
-        }
-        if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
-            //buffer empty
-            while (spiram_get_remaining_space_in_ringbuffer() > 128) {
-                fres = f_read(&fsrc, data, 32, &br);
-                if (fres == FR_OK) {
-                	spiram_write_array_to_ringbuffer(data, 32);
-                    if (br < 32) { VS1003_handle_end_of_file(); }
-                }
-            }
-        }
-        break;
-            break;
+        case STREAM_FILE_FILL_BUFFER:
+           while (spiram_get_remaining_space_in_ringbuffer() > 128) {
+               fres = f_read(&fsrc, data, 32, &br);
+               if (fres == FR_OK) {
+                   if (br) { spiram_write_array_to_ringbuffer(data, br); }
+                   if (br < 32) {  //enn of file
+                       VS1003_handle_end_of_file();
+                   }
+               }
+           }
+           StreamState = STREAM_FILE_GET_DATA;
+           break;
+
+       case STREAM_FILE_GET_DATA:
+           while (spiram_get_remaining_space_in_ringbuffer() > 128) {
+			   fres = f_read(&fsrc, data, 32, &br);
+			   if ( fres == FR_OK ) {
+				   if (br) { spiram_write_array_to_ringbuffer(data, 32); }
+				   if (br < 32) {     //end of file
+					   VS1003_handle_end_of_file();
+					   break;
+				   }
+			   }
+			   if (HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) break;
+           }
+           if (StreamState == STREAM_HOME) {
+               //File had been closed in previous step
+               //due to reaching end of file with loop
+               //and dir flags cleared.
+               break;
+           }
+           if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
+               //buffer empty
+               StreamState = STREAM_FILE_FILL_BUFFER;
+           }
+           break;
 
 		case STREAM_HTTP_CLOSE:
 			// Close the socket so it can be used by other modules
