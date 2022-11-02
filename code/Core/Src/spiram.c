@@ -33,7 +33,7 @@ void spiram_init(void) {
     if (HAL_SPI_DeInit(&hspi3) != HAL_OK) {
     	printf("SPIRAM: SPI3 deinit error\r\n");
     }
-	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+	hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
     if (HAL_SPI_Init(&hspi3) != HAL_OK) {
     	printf("SPIRAM: SPI3 init error\r\n");
     }

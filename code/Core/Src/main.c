@@ -634,6 +634,7 @@ void StartMainTask(void const * argument)
   if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
   else {printf("f_mount OK\r\n");}
 
+  spiram_init();
   spiram_clear();
 
   VS1003_begin();
