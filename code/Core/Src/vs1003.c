@@ -114,6 +114,7 @@ typedef enum {
     STREAM_HTTP_GET_DATA,
 	STREAM_FILE_FILL_BUFFER,
     STREAM_FILE_GET_DATA,
+	STREAM_FILE_PLAY_REST,
     STREAM_HTTP_CLOSE,
     STREAM_HTTP_RECONNECT_WAIT
 } StreamState_t;
@@ -442,11 +443,13 @@ void VS1003_handle(void) {
                fres = f_read(&fsrc, data, 32, &br);
                if (fres == FR_OK) {
                    if (br) { spiram_write_array_to_ringbuffer(data, br); }
-                   if (br < 32) {  //enn of file
-                       VS1003_handle_end_of_file();
+                   if (br < 32) {  //end of file
+                	   StreamState = STREAM_FILE_PLAY_REST;
+                	   break;
                    }
                }
            }
+           if (StreamState == STREAM_FILE_PLAY_REST) break;
            StreamState = STREAM_FILE_GET_DATA;
            break;
 
@@ -456,23 +459,25 @@ void VS1003_handle(void) {
 			   if ( fres == FR_OK ) {
 				   if (br) { spiram_write_array_to_ringbuffer(data, 32); }
 				   if (br < 32) {     //end of file
-					   VS1003_handle_end_of_file();
+					   StreamState = STREAM_FILE_PLAY_REST;
 					   break;
 				   }
 			   }
 			   if (HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) break;
            }
-           if (StreamState == STREAM_HOME) {
-               //File had been closed in previous step
-               //due to reaching end of file with loop
-               //and dir flags cleared.
-               break;
-           }
+           if (StreamState == STREAM_FILE_PLAY_REST) break;
            if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
                //buffer empty
                StreamState = STREAM_FILE_FILL_BUFFER;
            }
            break;
+
+        case STREAM_FILE_PLAY_REST:
+            if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
+                //buffer empty
+            	VS1003_handle_end_of_file();
+            }
+        	break;
 
 		case STREAM_HTTP_CLOSE:
 			// Close the socket so it can be used by other modules
@@ -680,7 +685,7 @@ leaves flag unchanged */
 
 static void VS1003_soft_stop (void) {
 	//Can be used only if it is actually playing from file
-	if (StreamState == STREAM_FILE_GET_DATA) {
+	if ( StreamState == STREAM_FILE_GET_DATA || StreamState == STREAM_FILE_PLAY_REST ) {
 		f_close(&fsrc);
 		VS1003_stopPlaying();
 		StreamState = STREAM_HOME;
@@ -807,7 +812,9 @@ void VS1003_stop(void) {
 		  lwip_close(sock);
 		  StreamState = STREAM_HOME;
 		  break;
+	  case STREAM_FILE_FILL_BUFFER:
 	  case STREAM_FILE_GET_DATA:
+	  case STREAM_FILE_PLAY_REST:
 		  f_close(&fsrc);
 		  if (dir_flag) {
 			  f_closedir(&vsdir);
