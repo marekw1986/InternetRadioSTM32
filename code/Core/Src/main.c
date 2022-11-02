@@ -616,8 +616,6 @@ void StartMainTask(void const * argument)
   /* init code for USB_HOST */
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
-//  static uint32_t timer = 0;
-//  static uint32_t one_time_timer = 0;
   static FRESULT res;
 
   printf("Starting default task\r\n");
@@ -642,7 +640,7 @@ void StartMainTask(void const * argument)
   VS1003_setLoop(TRUE);
 //  VS1003_play_dir("0:/");
 //  VS1003_play_next_http_stream_from_list();
-  VS1003_play_http_stream("http://stream3.polskieradio.pl:8904/");
+  VS1003_play_http_stream("http://an01.cdn.eurozet.pl/ant-waw.mp3");
   /* Infinite loop */
   for(;;)
   {

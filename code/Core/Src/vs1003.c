@@ -92,11 +92,6 @@ const char* internet_radios[] = {
     "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
 };
 
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-static uint32_t measured_stream_bitrate_tmp = 0;
-static uint32_t measured_stream_bitrate = 0;
-#endif
-
 FIL fsrc;
 DIR vsdir;
 
@@ -135,12 +130,6 @@ typedef enum {
     FEED_RET_OK,
     FEED_RET_BUFFER_EMPTY
 } feed_ret_t;
-
-typedef struct {
-	uint32_t timer;
-	struct pbuf* p;
-	uint8_t data_ready;
-} StreamArgs_t;
 
 // Register names
 
@@ -290,18 +279,13 @@ static feed_ret_t VS1003_feed_from_buffer (void) {
 
 void VS1003_handle(void) {
 	struct hostent* remoteHost;
-	//struct in_addr addr;
 	struct sockaddr_in addr;
-	static StreamArgs_t args = {0, NULL, FALSE};
+	static uint32_t timer = 0;
 	int ret;
-//	static ip_addr_t server_addr;
 	uint16_t w = 0;
 	FRESULT fres;
 	unsigned int br;
 	uint8_t data[32];
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-	static uint32_t measure_stream_bitrate_timer = 0;
-#endif
 
 	switch(StreamState)
 	{
@@ -379,7 +363,7 @@ void VS1003_handle(void) {
 						break;
 					case HTTP_HEADER_OK:
 						printf("It is 200 OK\r\n");
-						args.timer = millis();
+						timer = millis();
 						StreamState = STREAM_HTTP_FILL_BUFFER;     //STREAM_HTTP_GET_DATA
 						VS1003_startPlaying();
 						break;
@@ -400,10 +384,10 @@ void VS1003_handle(void) {
             while (spiram_get_remaining_space_in_ringbuffer() > 128) {
             	w = lwip_recv(sock, data, 32, 0);
             	if (w > 0) {
-            		args.timer = millis();
+            		timer = millis();
             		spiram_write_array_to_ringbuffer(data, w);
             	}
-                if ( (uint32_t)(millis()-args.timer) > 5000) {
+                if ( (uint32_t)(millis()-timer) > 5000) {
                     //There was no data in 5 seconds - reconnect
                     printf("Internet radio: no new data timeout - reseting\r\n");
                     ReconnectStrategy = RECONNECT_WAIT_LONG;
@@ -412,7 +396,7 @@ void VS1003_handle(void) {
                 }
             }
 			printf("Buffer filled\r\n");
-			args.timer = millis();
+			timer = millis();
 			StreamState = STREAM_HTTP_GET_DATA;
 			break;
 
@@ -420,17 +404,17 @@ void VS1003_handle(void) {
             while (spiram_get_remaining_space_in_ringbuffer() > 128) {
             	w = lwip_recv(sock, data, 32, 0);
             	if (w > 0) {
-            		args.timer = millis();
+            		timer = millis();
             		spiram_write_array_to_ringbuffer(data, w);
             	}
             	if (HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) break;
             }
             if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
                 StreamState = STREAM_HTTP_FILL_BUFFER;
-                args.timer = millis();
+                timer = millis();
                 break;
             }
-            if ( (uint32_t)(millis()-args.timer) > 5000) {
+            if ( (uint32_t)(millis()-timer) > 5000) {
                 //There was no data in 5 seconds - reconnect
                 printf("Internet radio: no new data timeout - reseting\r\n");
                 ReconnectStrategy = RECONNECT_WAIT_LONG;
@@ -500,23 +484,16 @@ void VS1003_handle(void) {
                     StreamState = STREAM_HOME;
                     break;
             }
-            args.timer = millis();
+            timer = millis();
 			break;
 
         case STREAM_HTTP_RECONNECT_WAIT:
-            if ( (uint32_t)(millis()-args.timer) > ((ReconnectStrategy == RECONNECT_WAIT_LONG) ? 5000 : 1000) ) {
+            if ( (uint32_t)(millis()-timer) > ((ReconnectStrategy == RECONNECT_WAIT_LONG) ? 5000 : 1000) ) {
                 printf("Internet radio: reconnecting\r\n");
                 StreamState = STREAM_HTTP_BEGIN;
             }
             break;
 	}
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-	if ((uint32_t)(millis()-measure_stream_bitrate_timer) > 1000 ) {
-		measured_stream_bitrate = measured_stream_bitrate_tmp;
-		measured_stream_bitrate_tmp = 0;
-		measure_stream_bitrate_timer = millis();
-	}
-#endif
 }
 
 /****************************************************************************/
@@ -836,9 +813,3 @@ void VS1003_setLoop(uint8_t val) {
 uint8_t VS1003_getLoop(void) {
   return loop_flag;
 }
-
-#ifdef VS1003_MEASURE_STREAM_BITRATE
-uint32_t VS1003_get_stream_bitrate (void) {
-	return measured_stream_bitrate;
-}
-#endif
