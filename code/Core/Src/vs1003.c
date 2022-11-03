@@ -389,13 +389,14 @@ void VS1003_handle(void) {
             		spiram_write_array_to_ringbuffer(data, w);
             	}
                 if ( (uint32_t)(millis()-timer) > 5000) {
-                    //There was no data in 5 seconds - reconnect
-                    printf("Internet radio: no new data timeout - reseting\r\n");
-                    ReconnectStrategy = RECONNECT_WAIT_LONG;
+                    //There was no data in 5 seconds - close
+                    printf("Internet radio: no new data timeout - closing\r\n");
+                    ReconnectStrategy = DO_NOT_RECONNECT;
                     StreamState = STREAM_HTTP_CLOSE;
                     break;
                 }
             }
+            if (StreamState == STREAM_HTTP_CLOSE) break;
 			printf("Buffer filled\r\n");
 			timer = millis();
 			StreamState = STREAM_HTTP_GET_DATA;
@@ -408,18 +409,19 @@ void VS1003_handle(void) {
             		timer = millis();
             		spiram_write_array_to_ringbuffer(data, w);
             	}
+                if ( (uint32_t)(millis()-timer) > 5000) {
+                    //There was no data in 5 seconds - close
+                    printf("Internet radio: no new data timeout - closing\r\n");
+                    ReconnectStrategy = DO_NOT_RECONNECT;
+                    StreamState = STREAM_HTTP_CLOSE;
+                }
             	if (HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) break;
             }
+            if (StreamState == STREAM_HTTP_CLOSE) break;
             if (VS1003_feed_from_buffer() == FEED_RET_BUFFER_EMPTY) {
                 StreamState = STREAM_HTTP_FILL_BUFFER;
                 timer = millis();
                 break;
-            }
-            if ( (uint32_t)(millis()-timer) > 5000) {
-                //There was no data in 5 seconds - reconnect
-                printf("Internet radio: no new data timeout - reseting\r\n");
-                ReconnectStrategy = RECONNECT_WAIT_LONG;
-                StreamState = STREAM_HTTP_CLOSE;
             }
 			break;
 
