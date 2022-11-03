@@ -77,7 +77,7 @@ extern SPI_HandleTypeDef hspi1;
 #define SM_LINE_IN          14
 
 const char* internet_radios[] = {
-    "http://redir.atmcdn.pl/sc/o2/Eurozet/live/antyradio.livx?audio=5",     //Antyradio
+    "http://an01.cdn.eurozet.pl/ant-waw.mp3",     							//Antyradio
 	"http://ckluradio.laurentian.ca:88/broadwave.mp3",                                     //Radio Pryzmat
     "http://stream3.polskieradio.pl:8900/",                                 //PR1
     "http://stream3.polskieradio.pl:8902/",                                 //PR2
@@ -614,6 +614,25 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
       }
     }
   }
+}
+
+void VS1003_play_next(void) {
+    switch (StreamState) {
+        case STREAM_FILE_FILL_BUFFER:
+        case STREAM_FILE_GET_DATA:
+            if (dir_flag) {
+                VS1003_play_next_audio_file_from_directory();
+            }
+            break;
+        case STREAM_HOME:	//TEMP
+        case STREAM_HTTP_FILL_BUFFER:
+        case STREAM_HTTP_GET_DATA:
+            VS1003_stop();
+            VS1003_play_next_http_stream_from_list();
+            break;
+        default:
+            break;
+    }
 }
 
 

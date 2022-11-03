@@ -652,9 +652,10 @@ void StartMainTask(void const * argument)
 		printf("Received %d from queque\r\n", queque_rcv);
 		switch(queque_rcv) {
 			case VS_MSG_NEXT:
-				VS1003_play_next_http_stream_from_list();
+				VS1003_play_next();
 				break;
 			case VS_MSG_STOP:
+				VS1003_stop();
 				break;
 			default:
 				break;

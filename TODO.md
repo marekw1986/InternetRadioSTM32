@@ -24,3 +24,4 @@ Internet radio based on STM32F107
   - [x] Check if it is possible to increase VS1003 SPI speed
 - [x] Remove old circular buffer
 - [x] Implement memory friendly HTTP header parser
+- [x] Add contextual next function
