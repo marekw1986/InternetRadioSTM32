@@ -21,6 +21,8 @@
 extern "C" {
 #endif
 
+enum {VS_MSG_NEXT, VS_MSG_STOP};
+
 //public functions
 void VS1003_begin(void);    
 uint16_t VS1003_read_register(uint8_t _reg);

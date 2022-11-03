@@ -3,14 +3,14 @@ Internet radio based on STM32F107
 
 ### Tasks
 - [ ] Determine why uninitalized SD card causes choppy playback (probably some SPI3 interference)
-  - [ ] Try to add hw pullup
+  - [x] Try to add hw pullup
 - [ ] Use FreeRTOS and socket lwIP API
   - [x] Add FreeRTOS to project
   - [x] Test existing libraries
   - [x] Test USB MSD Host and Ethernet
   - [x] Implement lwIP socket API
   - [x] Integrate memory friendly HTTP header parser with code
-  - [ ] Move buttons checking to separate task
+  - [x] Move buttons checking to separate task
 - [ ] Create UI
   - [ ] Add display
   - [ ] Add rotary encoder

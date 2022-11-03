@@ -67,7 +67,7 @@ UART_HandleTypeDef huart1;
 
 osThreadId mainTaskHandle;
 osThreadId ioTaskHandle;
-osMutexId vsMutexHandle;
+osMessageQId vsQueueHandle;
 /* USER CODE BEGIN PV */
 FATFS FatFS;
 /* USER CODE END PV */
@@ -133,11 +133,6 @@ int main(void)
   HAL_TIM_Base_Start(&htim4);									//Required for delay_us
   /* USER CODE END 2 */
 
-  /* Create the mutex(es) */
-  /* definition and creation of vsMutex */
-  osMutexDef(vsMutex);
-  vsMutexHandle = osMutexCreate(osMutex(vsMutex));
-
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -149,6 +144,11 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of vsQueue */
+  osMessageQDef(vsQueue, 16, uint8_t);
+  vsQueueHandle = osMessageCreate(osMessageQ(vsQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -595,8 +595,10 @@ void usb_write (void) {
 
 void next_callback (void) {
 	printf("Next button pressed\r\n");
-	VS1003_stop();
-	VS1003_play_next_http_stream_from_list();
+	static uint8_t to_send = VS_MSG_NEXT;
+	if (xQueueSend(vsQueueHandle, (void*)&to_send, portMAX_DELAY)) {
+		printf("VS_MSG_NEXT sent to queque\r\n");
+	}
 }
 
 /* USER CODE END 4 */
@@ -617,6 +619,7 @@ void StartMainTask(void const * argument)
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
   static FRESULT res;
+  uint8_t queque_rcv;
 
   printf("Starting default task\r\n");
 
@@ -645,6 +648,18 @@ void StartMainTask(void const * argument)
   for(;;)
   {
 	VS1003_handle();
+	if (xQueueReceive(vsQueueHandle, &queque_rcv, 5) == pdTRUE) {
+		printf("Received %d from queque\r\n", queque_rcv);
+		switch(queque_rcv) {
+			case VS_MSG_NEXT:
+				VS1003_play_next_http_stream_from_list();
+				break;
+			case VS_MSG_STOP:
+				break;
+			default:
+				break;
+		}
+	}
 	osDelay(1);
   }
   /* USER CODE END 5 */

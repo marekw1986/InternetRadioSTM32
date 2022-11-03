@@ -294,6 +294,7 @@ void VS1003_handle(void) {
             break;
 
 		case STREAM_HTTP_BEGIN:
+			printf("Starting new connection\r\n)");
 			//clear circular buffer
 			spiram_clear_ringbuffer();
 			memset(&addr, 0x00, sizeof(struct sockaddr_in));
@@ -493,6 +494,10 @@ void VS1003_handle(void) {
                 StreamState = STREAM_HTTP_BEGIN;
             }
             break;
+
+        default:
+        	StreamState = STREAM_HOME;
+        	break;
 	}
 }
 
@@ -731,10 +736,12 @@ void VS1003_play_http_stream(const char* url) {
   if (StreamState != STREAM_HOME) return;
 
   if (parse_url(url, strlen(url), &uri)) {
-	  StreamState = STREAM_HTTP_BEGIN;
+	  printf("URL %s parsed sucessfully\r\n", url);
+	  StreamState = STREAM_HTTP_CLOSE;
 	  ReconnectStrategy = RECONNECT_WAIT_SHORT;
   }
   else {
+	  printf("URL parsing error\r\n");
 	  StreamState = STREAM_HOME;
 	  ReconnectStrategy = DO_NOT_RECONNECT;
   }
@@ -786,7 +793,8 @@ void VS1003_stop(void) {
 	  case STREAM_HTTP_PROCESS_HEADER:
 	  case STREAM_HTTP_FILL_BUFFER:
 	  case STREAM_HTTP_GET_DATA:
-		  lwip_close(sock);
+//		  lwip_close(sock);
+		  //printf("Connection closed\r\n");
 		  StreamState = STREAM_HOME;
 		  break;
 	  case STREAM_FILE_FILL_BUFFER:
