@@ -76,22 +76,6 @@ extern SPI_HandleTypeDef hspi1;
 #define SM_ADCPM_HP         13
 #define SM_LINE_IN          14
 
-const char* internet_radios[] = {
-    "http://an01.cdn.eurozet.pl/ant-waw.mp3",     							//Antyradio
-	"http://ckluradio.laurentian.ca:88/broadwave.mp3",                                     //Radio Pryzmat
-    "http://stream3.polskieradio.pl:8900/",                                 //PR1
-    "http://stream3.polskieradio.pl:8902/",                                 //PR2
-    "http://stream3.polskieradio.pl:8904/",                                 //PR3
-    "http://stream4.nadaje.com:9680/radiokrakow-s3",                        //Kraków
-	"http://stream4.nadaje.com:9678/radiokrakow-s2",                        //Kraków 32kbps
-    "http://195.150.20.5/rmf_fm",                                           //RMF
-    "http://redir.atmcdn.pl/sc/o2/Eurozet/live/audio.livx?audio=5",         //Zet
-    "http://ckluradio.laurentian.ca:88/broadwave.mp3",                      //CKLU
-    //"http://stream.rcs.revma.com/an1ugyygzk8uv",                            //Radio 357
-    //"http://stream.rcs.revma.com/ypqt40u0x1zuv",                            //Radio Nowy Swiat
-    "http://51.255.8.139:8822/stream"                                       //Radio Pryzmat
-};
-
 FIL fsrc;
 DIR vsdir;
 
@@ -770,12 +754,21 @@ void VS1003_play_http_stream(const char* url) {
 }
 
 void VS1003_play_next_http_stream_from_list(void) {
-  static int ind = 0;
+    static int ind = 1;
 
-  ind++;
-  if (ind >= sizeof(internet_radios)/sizeof(const char*)) ind=0;
-  VS1003_stop();
-  VS1003_play_http_stream(internet_radios[ind]);
+    char* url = get_station_url_from_file(ind, NULL, 0);
+    if (url == NULL) {
+        //Function returned NULL, there is no stream with such ind
+        //Try again from the beginning
+        ind = 1;
+        url = get_station_url_from_file(ind, NULL, 0);
+        if (url == NULL) return;
+    }
+    else {
+        ind++;
+    }
+    VS1003_stop();
+    VS1003_play_http_stream(url);
 }
 
 /*Always call VS1003_stop() or VS1003_soft_stop() before calling that function*/

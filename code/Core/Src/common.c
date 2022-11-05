@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include "ff.h"
 #include "common.h"
 
 char working_buffer[512];
@@ -196,4 +197,59 @@ uint8_t parse_url (const char* url, size_t len, uri_t* uri) {
 	memcpy(uri->file, rest, filelen);
     uri->file[filelen] = '\0';
 	return 1;
+}
+
+/*WARNING: To preserve precious memory on that hardware this function uses the same working buffer as
+ parse_http_headers(). Be sure not to use both of them at the same time. Remember that
+ parse_http_headers() is baing called multiple times by state machine.*/
+char* get_station_url_from_file(uint16_t number, char* stream_name, size_t stream_name_len) {
+    FIL file;
+    FRESULT res;
+    char* result = NULL;
+
+    res = f_open(&file, "0:/radio.txt", FA_READ);
+    if (res != FR_OK) {
+        printf("Can't open file\r\n");
+        return NULL;
+    }
+
+    while (f_gets(working_buffer, sizeof(working_buffer)-1, &file) != NULL) {
+        if (working_buffer[strlen(working_buffer)-1] == '\n') {
+            working_buffer[strlen(working_buffer)-1] = '\0';
+        }
+        int ret = parse_stream_data_line(working_buffer, strlen(working_buffer), stream_name, stream_name_len, working_buffer, sizeof(working_buffer)-1);
+        if (ret && ret == number) {
+            result = working_buffer;
+            break;
+        }
+    }
+    f_close(&file);
+    return result;
+}
+
+uint8_t parse_stream_data_line(char* line, size_t line_len, char* stream_name, size_t stream_name_len, char* stream_url, size_t stream_url_len) {
+    int line_number = atoi(line);
+
+    if (line_number > 0) {
+        char* rest = strstr(line, " : ");
+        if (rest) {
+            *rest = '\0';
+            rest += 3;
+            if (rest >= line+line_len) { return 0; }
+            char* url = strstr(rest, " : ");
+            if (url) {
+                *url = '\0';
+                url += 3;
+                if (url >= line+line_len) { return 0; }
+                if (stream_name) {
+                    strncpy(stream_name, rest, stream_name_len);
+                }
+                if (stream_url) {
+                    strncpy(stream_url, url, stream_url_len);
+                }
+                return line_number;
+            }
+        }
+    }
+    return 0;
 }
