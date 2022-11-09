@@ -37,6 +37,7 @@
 #include "spiram.h"
 #include "buttons.h"
 #include "lwip/apps/lwiperf.h"
+#include "lwip/apps/sntp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,6 +47,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+//#define SNTP_SET_SYSTEM_TIME(sec) printf("NTP timestamp received: %lu", sec)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -637,6 +639,10 @@ void StartMainTask(void const * argument)
 
   spiram_init();
   spiram_clear();
+
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  sntp_setservername(0, "pool.ntp.org");
+  sntp_init();
 
   VS1003_begin();
   VS1003_setVolume(0x00);
