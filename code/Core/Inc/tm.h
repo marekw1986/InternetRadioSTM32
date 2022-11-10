@@ -5,11 +5,11 @@
  *      Author: marek
  */
 
-#ifndef INC_TIME_H_
-#define INC_TIME_H_
+#ifndef INC_TM_H_
+#define INC_TM_H_
 
 #include <stdint.h>
 
 void delay_us (uint16_t us);
 
-#endif /* INC_TIME_H_ */
+#endif /* INC_TM_H_ */

@@ -8,10 +8,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <tm.h>
 #include "stm32f1xx_hal.h"
 #include "main.h"
 #include "spiram.h"
-#include "time.h"
 
 #define RDMR        5       // Read the Mode Register
 #define WRMR        1       // Write to the Mode Register

@@ -26,3 +26,4 @@ Internet radio based on STM32F107
 - [x] Determine why uninitalized SD card causes choppy playback (probably some SPI3 interference)
   - [x] Try to add hw pullup
 - [x] Move list of streams to file
+- [x] Set RTC with SNTP

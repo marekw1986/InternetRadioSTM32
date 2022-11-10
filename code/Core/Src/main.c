@@ -29,7 +29,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/unistd.h> // STDOUT_FILENO, STDERR_FILENO
+#include "tm.h"
 #include "common.h"
 #include "vs1003.h"
 #include "user_diskio.h"
@@ -47,7 +49,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-//#define SNTP_SET_SYSTEM_TIME(sec) printf("NTP timestamp received: %lu", sec)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -88,6 +89,7 @@ void StartIoTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void usb_write (void);
+void set_rtc_with_ntp_timstamp(uint32_t sec);
 void next_callback(void);
 /* USER CODE END PFP */
 
@@ -298,20 +300,20 @@ static void MX_RTC_Init(void)
 
   /** Initialize RTC and set the Time and Date
   */
-  sTime.Hours = 0x0;
-  sTime.Minutes = 0x0;
-  sTime.Seconds = 0x0;
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
 
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
   DateToUpdate.WeekDay = RTC_WEEKDAY_MONDAY;
   DateToUpdate.Month = RTC_MONTH_JANUARY;
-  DateToUpdate.Date = 0x1;
-  DateToUpdate.Year = 0x0;
+  DateToUpdate.Date = 1;
+  DateToUpdate.Year = 0;
 
-  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BCD) != HAL_OK)
+  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
@@ -595,6 +597,32 @@ void usb_write (void) {
     f_close(&file);
 }
 
+void set_rtc_with_ntp_timstamp(uint32_t sec) {
+	RTC_TimeTypeDef sTime;
+	RTC_DateTypeDef sDate;
+	struct tm time_tm;
+	time_t rawtime = sec;
+
+	printf("NTP timestamp received: %lu\r\n", sec);
+	gmtime_r(&rawtime, &time_tm);
+
+	sTime.Hours = (uint8_t)time_tm.tm_hour;
+	sTime.Minutes = (uint8_t)time_tm.tm_min;
+	sTime.Seconds = (uint8_t)time_tm.tm_sec;
+	if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK) {
+		printf("Can't set time\r\n");
+	}
+	if (time_tm.tm_wday == 0) { time_tm.tm_wday = 7; }
+	sDate.WeekDay = (uint8_t)time_tm.tm_wday;
+	sDate.Month = (uint8_t)time_tm.tm_mon+1;
+	sDate.Date = (uint8_t)time_tm.tm_mday;
+	sDate.Year = (uint16_t)(time_tm.tm_year+1900-2000);
+	if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK) {
+		printf("Can't set date\r\n");
+	}
+
+}
+
 void next_callback (void) {
 	printf("Next button pressed\r\n");
 	static uint8_t to_send = VS_MSG_NEXT;
@@ -683,12 +711,24 @@ void StartIoTask(void const * argument)
 {
   /* USER CODE BEGIN StartIoTask */
   static button_t next_btn;
+  RTC_TimeTypeDef RtcTime;
+  RTC_DateTypeDef RtcDate;
+  uint8_t compareSeconds = 0;
+
   printf("I/O task starting\r\n");
   button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
   /* Infinite loop */
   for(;;)
   {
 	button_handle(&next_btn);
+
+	HAL_RTC_GetTime(&hrtc, &RtcTime, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &RtcDate, RTC_FORMAT_BIN);
+	if(RtcTime.Seconds != compareSeconds) {
+		printf("Date: %02d.%02d.20%02d Time: %02d:%02d:%02d\r\n", RtcDate.Date, RtcDate.Month, RtcDate.Year, RtcTime.Hours, RtcTime.Minutes, RtcTime.Seconds);
+		compareSeconds = RtcTime.Seconds;
+	}
+
     osDelay(20);
   }
   /* USER CODE END StartIoTask */

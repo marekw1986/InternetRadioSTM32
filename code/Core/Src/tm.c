@@ -5,10 +5,10 @@
  *      Author: marek
  */
 
-#include "time.h"
 #include "main.h"
 #include "stm32f1xx_hal.h"
 #include <stdio.h>
+#include <tm.h>
 
 extern TIM_HandleTypeDef htim4;
 

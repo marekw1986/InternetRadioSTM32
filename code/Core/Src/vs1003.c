@@ -9,9 +9,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <tm.h>
 
 #include "vs1003.h"
-#include "time.h"
 #include "stm32f1xx_hal.h"
 #include "lwip/tcp.h"
 #include "lwip/sockets.h"
