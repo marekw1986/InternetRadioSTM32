@@ -737,9 +737,8 @@ void StartIoTask(void const * argument)
 {
   /* USER CODE BEGIN StartIoTask */
   static button_t next_btn;
-  RTC_TimeTypeDef RtcTime;
-  RTC_DateTypeDef RtcDate;
-  uint8_t compareSeconds = 0;
+  time_t oldTimestamp = 0;
+  time_t newTimestamp;
 
   printf("I/O task starting\r\n");
   button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);
@@ -748,11 +747,11 @@ void StartIoTask(void const * argument)
   {
 	button_handle(&next_btn);
 
-	HAL_RTC_GetTime(&hrtc, &RtcTime, RTC_FORMAT_BIN);
-	HAL_RTC_GetDate(&hrtc, &RtcDate, RTC_FORMAT_BIN);
-	if(RtcTime.Seconds != compareSeconds) {
-		printf("Date: %02d.%02d.20%02d Time: %02d:%02d:%02d Timestamp: %lu\r\n", RtcDate.Date, RtcDate.Month, RtcDate.Year, RtcTime.Hours, RtcTime.Minutes, RtcTime.Seconds, (uint32_t)rtc_get_timestamp());
-		compareSeconds = RtcTime.Seconds;
+	newTimestamp = rtc_get_timestamp();
+	if(newTimestamp != oldTimestamp) {
+		struct tm* time_tm = localtime(&newTimestamp);
+		if (time_tm) { printf("%s\r\n", asctime(time_tm)); }
+		oldTimestamp = newTimestamp;
 	}
 
     osDelay(20);
