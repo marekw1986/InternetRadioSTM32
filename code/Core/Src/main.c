@@ -597,7 +597,7 @@ void usb_write (void) {
     f_close(&file);
 }
 
-void set_rtc_with_ntp_timstamp(uint32_t sec) {
+void rtc_set_with_ntp_timstamp(uint32_t sec) {
 	RTC_TimeTypeDef sTime;
 	RTC_DateTypeDef sDate;
 	struct tm time_tm;
@@ -621,6 +621,32 @@ void set_rtc_with_ntp_timstamp(uint32_t sec) {
 		printf("Can't set date\r\n");
 	}
 
+}
+
+struct tm rtc_get_time(void) {
+	RTC_TimeTypeDef RtcTime;
+	RTC_DateTypeDef RtcDate;
+	struct tm time_tm;
+
+	HAL_RTC_GetTime(&hrtc, &RtcTime, RTC_FORMAT_BIN);
+	HAL_RTC_GetDate(&hrtc, &RtcDate, RTC_FORMAT_BIN);
+	time_tm.tm_hour = RtcTime.Hours;
+	time_tm.tm_min = RtcTime.Minutes;
+	time_tm.tm_sec = RtcTime.Seconds;
+	if (RtcDate.WeekDay == 7) { RtcDate.WeekDay = 0; }
+	time_tm.tm_wday = RtcDate.WeekDay;
+	time_tm.tm_mon = RtcDate.Month -1;
+	time_tm.tm_mday = RtcDate.Date;
+	time_tm.tm_year = RtcDate.Year-1900+2000;
+
+	return time_tm;
+}
+
+time_t rtc_get_timestamp(void) {
+	struct tm time_tm = rtc_get_time();
+	time_t timestamp = mktime(&time_tm);
+
+	return timestamp;
 }
 
 void next_callback (void) {
@@ -725,7 +751,7 @@ void StartIoTask(void const * argument)
 	HAL_RTC_GetTime(&hrtc, &RtcTime, RTC_FORMAT_BIN);
 	HAL_RTC_GetDate(&hrtc, &RtcDate, RTC_FORMAT_BIN);
 	if(RtcTime.Seconds != compareSeconds) {
-		printf("Date: %02d.%02d.20%02d Time: %02d:%02d:%02d\r\n", RtcDate.Date, RtcDate.Month, RtcDate.Year, RtcTime.Hours, RtcTime.Minutes, RtcTime.Seconds);
+		printf("Date: %02d.%02d.20%02d Time: %02d:%02d:%02d Timestamp: %lu\r\n", RtcDate.Date, RtcDate.Month, RtcDate.Year, RtcTime.Hours, RtcTime.Minutes, RtcTime.Seconds, (uint32_t)rtc_get_timestamp());
 		compareSeconds = RtcTime.Seconds;
 	}
 
