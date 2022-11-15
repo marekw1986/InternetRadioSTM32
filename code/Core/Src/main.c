@@ -72,7 +72,8 @@ osThreadId mainTaskHandle;
 osThreadId ioTaskHandle;
 osMessageQId vsQueueHandle;
 /* USER CODE BEGIN PV */
-FATFS FatFS;
+FATFS UsbFS;
+FATFS SdFS;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -687,9 +688,13 @@ void StartMainTask(void const * argument)
   HAL_GPIO_WritePin(TST_GPIO_Port, TST_Pin, 1);
   HAL_GPIO_WritePin(USB_EN_GPIO_Port, USB_EN_Pin, 1);
 
-  res = f_mount(&FatFS, "0:", 0);
-  if (res != FR_OK) {printf("f_mount error code: %i\r\n", res);}
-  else {printf("f_mount OK\r\n");}
+  res = f_mount(&UsbFS, "0:", 0);
+  if (res != FR_OK) {printf("USB f_mount error code: %i\r\n", res);}
+  else {printf("USB f_mount OK\r\n");}
+
+  res = f_mount(&SdFS, "1:", 1);
+  if (res != FR_OK) {printf("SD f_mount error code: %i\r\n", res);}
+  else {printf("SD f_mount OK\r\n");}
 
   spiram_init();
   spiram_clear();

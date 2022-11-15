@@ -207,10 +207,13 @@ char* get_station_url_from_file(uint16_t number, char* stream_name, size_t strea
     FRESULT res;
     char* result = NULL;
 
-    res = f_open(&file, "0:/radio.txt", FA_READ);
+    res = f_open(&file, "1:/radio.txt", FA_READ);
     if (res != FR_OK) {
-        printf("Can't open file\r\n");
-        return NULL;
+		res = f_open(&file, "0:/radio.txt", FA_READ);
+		if (res != FR_OK) {
+			printf("Can't open file\r\n");
+			return NULL;
+		}
     }
 
     while (f_gets(working_buffer, sizeof(working_buffer)-1, &file) != NULL) {
