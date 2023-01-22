@@ -696,6 +696,8 @@ void StartMainTask(void const * argument)
   if (res != FR_OK) {printf("SD f_mount error code: %i\r\n", res);}
   else {printf("SD f_mount OK\r\n");}
 
+  httpd_init();
+
   spiram_init();
   spiram_clear();
 
@@ -752,12 +754,12 @@ void StartIoTask(void const * argument)
   {
 	button_handle(&next_btn);
 
-	newTimestamp = rtc_get_timestamp();
-	if(newTimestamp != oldTimestamp) {
-		struct tm* time_tm = localtime(&newTimestamp);
-		if (time_tm) { printf("%s\r\n", asctime(time_tm)); }
-		oldTimestamp = newTimestamp;
-	}
+//	newTimestamp = rtc_get_timestamp();
+//	if(newTimestamp != oldTimestamp) {
+//		struct tm* time_tm = localtime(&newTimestamp);
+//		if (time_tm) { printf("%s\r\n", asctime(time_tm)); }
+//		oldTimestamp = newTimestamp;
+//	}
 
     osDelay(20);
   }

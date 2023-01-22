@@ -332,6 +332,7 @@ void VS1003_handle(void) {
 			ret = lwip_send(sock, (void*)"\r\nConnection: keep-alive\r\n\r\n", 28, 0);
 			printf("Fifth ret: %d\r\n", ret);
             printf("Sending headers\r\n");
+            prepare_http_parser();
 
             StreamState = STREAM_HTTP_PROCESS_HEADER;
 			break;
