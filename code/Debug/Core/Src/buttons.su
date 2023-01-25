@@ -1,0 +1,2 @@
+buttons.c:20:6:button_init	0	static
+buttons.c:30:6:button_handle	16	static

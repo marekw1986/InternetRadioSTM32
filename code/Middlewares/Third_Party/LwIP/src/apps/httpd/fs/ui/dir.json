@@ -1,0 +1,5 @@
+{
+"parent": "~parent~",
+"dirs": [~dirs~],
+"files": [~files~]
+}

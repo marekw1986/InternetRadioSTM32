@@ -1,0 +1,192 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Konfiguracja</title>
+<link rel="stylesheet" type="text/css" href="/ui/style.css">
+<link rel="stylesheet" type="text/css" href="/ui/menu.css">
+<script type="text/javascript">
+function fillTimezones() {
+	var curTZ = document.getElementById('curtz').value;
+	var timezones = "";
+	for(var i = -11; i<=13; i++ ) {
+		timezones += "<option value=" + i;
+		if (i == curTZ) {timezones += " selected";}
+		timezones += ">UTC ";
+		if (i<0) {timezones += "- "; timezones += Math.abs(i);}
+		else {timezones += "+ "; timezones += i;}
+		timezones += "</option>";
+	}
+	document.getElementById('timezone').innerHTML = timezones;	
+}
+function hide(boxId, divId) {
+    if (document.getElementById(boxId).checked) {
+        document.getElementById(divId).style.display = 'block';
+    } else {
+        document.getElementById(divId).style.display = 'none';
+    }
+}
+function ValidateIPaddress(inputText)  {  
+	var ipformat = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;  
+	if(inputText.value.match(ipformat)) {    
+		return true;  
+	}  
+	else  {  
+		return false;  
+	}  
+}
+function ValidateMACaddress(inputText) {
+    var macformat = /^[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}$/;
+    if(inputText.value.match(macformat)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+function test() {
+	var result = document.getElementById('result');
+	if (document.getElementById('dhcpYes').checked) {var dhcp="yes";}
+	else {var dhcp="no";}
+	var ip = document.getElementById('ip');
+	var netmask = document.getElementById('netmask');
+	var gw = document.getElementById('gw');
+	var dns1 = document.getElementById('dns1');
+	var dns2 = document.getElementById('dns2');
+    var mac = document.getElementById('mac');
+	var ntp = document.getElementById('ntp');
+	var timezone = document.getElementById('timezone');		
+	var token = document.getElementById('token');
+	var inputs = document.getElementsByClassName('ipInput');
+	for(i=0; i<inputs.length; i++) {
+		if(!ValidateIPaddress(inputs[i])) {
+			document.getElementById('ipSettings').style.display = 'block';
+			inputs[i].focus();
+			result.style.display = 'block';
+			result.innerHTML = "Nieprawidłowy format adresu IP.";
+			return false;
+		}
+	}
+    if (!ValidateMACaddress(mac)) {
+        mac.focus();
+        result.style.display = 'block';
+        result.innerHTML = 'Nieprawidłowy format adresu MAC.';
+        return false;
+    }    
+	if (ntp.value === '') {
+		ntp.focus();
+		result.style.display = 'block';
+		result.innerHTML = "Pole \"Serwer NTP\" nie może być puste.";
+		return false;		
+	}		
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+	   try {
+		  http_request = new ActiveXObject("Msxml2.XMLHTTP");	
+	   }
+	   catch (e) {
+			try {
+				http_request = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			catch (e){
+				result.innerHTML = "Wystąpił błąd przeglądarki. Wysłanie nowej konfiguracji do urządzenia nie jest możliwe.";
+				return false;
+			}	
+		}
+	}
+	http_request.onreadystatechange = function () {
+		if (http_request.readyState === 4 && http_request.status === 200 ) {
+            if (http_request.responseText === "invalid_token") {
+                result.style.display = 'block';
+                result.innerHTML = "Nieprawidłowy token operacji. Spróbuj ponownie załadować stronę.";
+            }
+			else if (http_request.responseText === "invalid_dhcp") {
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowych ustawień DHCP.";
+			}
+			else if (http_request.responseText === "invalid_ip") {
+				ip.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego adresu IP.";			
+			}
+			else if (http_request.responseText === "invalid_netmask") {
+				netmask.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowej maski podsieci.";					
+			}
+			else if (http_request.responseText === "invalid_gw") {
+				gw.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowej bramy domyślnej.";					
+			}
+			else if (http_request.responseText === "invalid_dns1") {
+				dns1.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego adresu serwera DNS #1.";					
+			}
+			else if (http_request.responseText === "invalid_dns2") {
+				dns2.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego adresu serwera DNS #2.";					
+			}
+			else if (http_request.responseText === "invalid_ntp") {
+				ntp.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego adresu serwera NTP.";					
+			}
+			else if (http_request.responseText === "invalid_mac") {
+				mac.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego adresu MAC.";					
+			}				
+			else if (http_request.responseText === "invalid_timezone") {
+				timezone.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Błąd parsowania nowego ustawienia strefy czasowej.";					
+			}										
+			else if (http_request.responseText === "ok") {
+				window.location.replace("/ui/reset.htm");
+			}
+			else {
+				result.style.display = 'block';
+				result.innerHTML = "Wystąpił błąd podczas zapisywaia konfiguracji";					
+			}
+		}
+	};
+	http_request.open("POST", "/ui/config.cgi", true);
+	http_request.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+	var request = "token=" + token.value + "&dhcp=" + dhcp + "&ip=" + ip.value + "&netmask=" + netmask.value + "&gw=" + gw.value + "&dns1=" + dns1.value + "&dns2=" + dns2.value + "&ntp=" + ntp.value + "&timezone=" + timezone.value + "&mac=" + mac.value;
+	http_request.send(request);
+	return true;	
+}    
+</script>
+</head>
+<body onload="fillTimezones();">
+<script src="/ui/menu.js"></script>
+<div id="main">
+<h1>Konfiguracja</h1>
+
+<input type="hidden" name="token" id="token" value="<!--#token-->">
+<label>DHCP:</label> 
+<input onClick="hide('dhcpNo', 'ipSettings')" value="yes" type="radio" name="dhcp" id="dhcpYes"~dhcpyes~>wł.
+<input onClick="hide('dhcpNo', 'ipSettings');" value="no" type="radio" name="dhcp" id="dhcpNo"~dhcpno~>wył.<br><br>
+
+<div id="ipSettings" style="display: ~ipdisp~;">
+<label>Adres IP:</label><input type="text" name="ip" id="ip" class="ipInput" value="~ip~" maxlength="15"><br>
+<label>Maska podsieci:</label><input type="text" name="netmask" id="netmask" class="ipInput" value="~netmask~" maxlength="15"><br>
+<label>Brama domyślna:</label><input type="text" name="gw" id="gw" class="ipInput" value="~gw~" maxlength="15"><br>
+<label>Serwer DNS #1:</label><input type="text" name="dns1" id="dns1" class="ipInput" value="~dns1~" maxlength="15"><br>
+<label>Serwer DNS #2:</label><input type="text" name="dns2" id="dns2" class="ipInput" value="~dns2~" maxlength="15"><br><br>
+</div>
+<label>Adres MAC</label><input type="text" name="mac" id="mac" class="macInput" value="~mac~" maxlength="17"><br>
+<label>Serwer NTP</label><input type="text" name="ntp" id="ntp" value="~ntp~" maxlength="60"><br>
+<input type="hidden" name="curtz" id="curtz" value="~timezone~">
+<label>Strefa czasowa:</label><select id="timezone"></select><br><br><br>
+<input type="button" value="Zapisz" onclick="test()">
+
+<div id="result" style="color:red; display:none;"></div>
+</div>
+</body>
+</html>

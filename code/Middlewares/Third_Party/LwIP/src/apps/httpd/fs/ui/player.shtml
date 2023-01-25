@@ -1,0 +1,248 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Odtwarzanie</title>
+<link rel="stylesheet" type="text/css" href="/ui/style.css">
+<link rel="stylesheet" type="text/css" href="/ui/menu.css">
+<script type="text/javascript">
+function test() {
+	var token = document.getElementById('token');
+	var url = document.getElementById('url');
+	var http_stream = document.getElementById('http_stream');
+	var file = document.getElementById('file');
+	var dir = document.getElementById('dir');
+	var result = document.getElementById('result');
+	var playsrc = "stream"
+	
+	if (url.value === '') {
+		url.focus();
+		result.style.display = 'block';
+		result.innerHTML = "Musisz podać URL.";
+		return false;		
+	}
+	
+	if (dir.checked) {
+		playsrc = "dir";
+	}
+	else if (file.checked) {
+		playsrc = "file"
+	}
+	else {
+		playsrc = "stream"
+	}
+
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+        result.innerHTML = "Wystąpił błąd przeglądarki. Wykonanie akcji nie jest możliwe.";
+        return false;
+	}
+	http_request.onreadystatechange = function () {
+		if (http_request.readyState === 4 && http_request.status === 200 ) {
+            if (http_request.responseText === "invalid_token") {
+                result.style.display = 'block';
+                result.innerHTML = "Nieprawidłowy token operacji. Spróbuj ponownie załadować stronę.";
+            }
+			else if (http_request.responseText === "empty_url") {
+				url.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Musisz podać URL.";
+			}
+			else if (http_request.responseText === "ok") {
+				result.style.display = 'block';
+				result.style.color = 'green';
+				result.innerHTML = "Ok.";	
+			}
+			else {
+				result.style.display = 'block';
+				result.innerHTML = "Wystąpił nieznany błąd.";					
+			}
+		}
+	};
+	http_request.open("POST", "/ui/play.cgi", true);
+	http_request.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+	var request ="token=" + token.value + "&src=" + playsrc + "&url=" + url.value;
+	http_request.send(request);
+	return true;
+}
+
+var getJSON = function(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status === 200) {
+        callback(null, xhr.response);
+      } else {
+        callback(status, xhr.response);
+      }
+    };
+    xhr.send();
+};
+
+function clearFiles() {
+	var select = document.getElementById('files');
+	var i, L = select.options.length - 1;
+	for(i = L; i >= 0; i--) {
+		select.remove(i);
+	}
+}
+
+function showDir(path) {
+    getJSON("/ui/dir.json?url="+path, function(err, data) {
+        var select = document.getElementById('files');
+        if (err === null) {
+			clearFiles();
+			if (data.parent !== "root") {
+				var back = document.createElement('option');
+				if (data.parent === "streams") {
+					back.value = "root";
+				}
+				else {
+					back.value = data.parent.substr(0, data.parent.lastIndexOf("/"));
+					if (back.value === "") back.value = "root";
+				}
+				back.innerHTML = "..";
+				back.dataset.type = "dir";
+				select.appendChild(back);
+			}
+			data.dirs.sort();
+            for (i=0; i<data.dirs.length; i++) {
+				var opt = document.createElement('option');
+				if (data.parent !== "root" && data.parent !== "streams") {
+					opt.value = data.parent + "/"
+				}
+                opt.value += data.dirs[i];
+                opt.innerHTML = "&#128193 " + data.dirs[i];
+                opt.dataset.type = "dir";
+                select.appendChild(opt);
+            }
+            data.files.sort();
+            if (data.parent === "streams") {
+				for (i=0; i<data.files.length; i++) {
+					var opt = document.createElement('option');
+					opt.value = data.files[i].url;
+					opt.innerHTML = "&#128225" + data.files[i].name;
+					opt.dataset.type = "stream";
+					select.appendChild(opt);
+				}
+			}
+			else {
+				for (i=0; i<data.files.length; i++) {
+					var opt = document.createElement('option');
+					opt.value = data.parent + "/" + data.files[i];
+					opt.innerHTML = "&#9834 " + data.files[i];
+					opt.dataset.type = "file";
+					select.appendChild(opt);
+				}
+			}
+        }
+        else {
+			
+		}
+    });
+}
+
+function play(path, type="file") {
+	var token = document.getElementById('token');
+	var result = document.getElementById('result');
+	var playsrc = type;
+	
+	if (playsrc !== "file" && playsrc !== "dir" && playsrc !== "stream") return;
+
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+        result.innerHTML = "Wystąpił błąd przeglądarki. Wykonanie akcji nie jest możliwe.";
+        return false;
+	}
+	http_request.onreadystatechange = function () {
+		if (http_request.readyState === 4 && http_request.status === 200 ) {
+            if (http_request.responseText === "invalid_token") {
+                result.style.display = 'block';
+                result.innerHTML = "Nieprawidłowy token operacji. Spróbuj ponownie załadować stronę.";
+            }
+			else if (http_request.responseText === "empty_url") {
+				url.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Musisz podać URL.";
+			}
+			else if (http_request.responseText === "ok") {
+				result.style.display = 'block';
+				result.style.color = 'green';
+				result.innerHTML = "Ok.";	
+			}
+			else {
+				result.style.display = 'block';
+				result.innerHTML = "Wystąpił nieznany błąd.";					
+			}
+		}
+	};
+	http_request.open("POST", "/ui/play.cgi", true);
+	http_request.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+	var request ="token=" + token.value + "&src=" + playsrc + "&url=" + path;
+	http_request.send(request);
+	return true;	
+}
+
+function fileAction() {
+	var select = document.getElementById('files');
+	var option = select[select.selectedIndex];
+	var type = option.dataset.type;
+	
+	if (type === "dir") {
+		showDir(option.value);
+	}
+	else if (type === "file") {
+		play(option.value);
+	}
+	else if (type === "stream") {
+		play(option.value, "stream");
+	}
+}
+
+function playBtnAction() {
+	var select = document.getElementById('files');
+	var option = select[select.selectedIndex];
+	var type = option.dataset.type;
+	play(option.value, type);
+}
+
+function stopBtnAction() {
+	play("");
+}
+
+function nextBtnAction() {
+	play("next");
+}
+
+</script>
+</head>
+<body onload="showDir('root')">
+<script src="/ui/menu.js"></script>
+<div id="main">
+<h1>Odtwarzanie</h1>
+<input type="hidden" name="token" id="token" value="<!--#token-->">
+<select name="files" id="files" size="15" ondblclick="fileAction()">
+</select><br>
+<input type="button" name="play_button" value="Odtwarzaj" onclick="playBtnAction()">
+<input type="button" name="stop_button" value="Stop" onclick="stopBtnAction()">
+<input type="button" name="next_button" value="Następny" onclick="nextBtnAction()"><br>
+<label for="url">URL:</label>
+<input type="text" name="url" id="url" value=""><br>
+<label for="http_stream">Stream HTTP</label>
+<input type="radio" id="http_stream" name="audio_source" value="Stream HTTP" checked><br>
+<label for="file">Plik</label>
+<input type="radio" id="file" name="audio_source" value="Plik"><br>
+<label for="dir">Katalog</label>
+<input type="radio" id="dir" name="audio_source" value="Katalog"><br>
+<input type="button" value="Odtwarzaj" onclick="test()">
+<div id="result" style="color:red; display:none;"></div>
+</div>
+</body>
+</html>

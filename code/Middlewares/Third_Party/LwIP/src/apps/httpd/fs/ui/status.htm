@@ -1,0 +1,69 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>System</title>
+<link rel="stylesheet" type="text/css" href="/ui/style.css">
+<link rel="stylesheet" type="text/css" href="/ui/menu.css">
+<script type="text/javascript">
+function reset() {
+    window.location.replace("/ui/reset.htm");
+}
+function restoreDefaults() {
+    r = confirm("Przywrócić domyślne ustawienia?");
+    if (!r) {return false;}
+    var token = document.getElementById("token");
+	var result = document.getElementById("result");
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+	   try {
+		  http_request = new ActiveXObject("Msxml2.XMLHTTP");	
+	   }
+	   catch (e) {
+			try {
+				http_request = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			catch (e){
+				result.innerHTML = "Wystąpił błąd przeglądarki, uniemożliwiający wykonanie zdalnego resetu urządzenia.";
+				return false;
+			}	
+		}
+	}
+	http_request.onreadystatechange = function () {
+		if (http_request.readyState === 4 && http_request.status === 200 ) {
+            if (http_request.responseText === "invalid_token") {
+                result.style.display = 'block';
+                result.innerHTML = "Nieprawidłowy token operacji. Spróbuj ponownie załadować stronę.";
+            }
+			else if (http_request.responseText === "ok") {
+				window.location.replace("/ui/reset.htm");
+			}
+			else {
+				result.style.display = 'block';
+				result.innerHTML = "Wystąpił błąd podczas zapisywaia nowego hasła";					
+			}
+		}
+	};    
+    var url = "/ui/restore.cgi?token=" + token.value;
+	http_request.open("GET", url, true);
+	http_request.send();
+	return true;    
+}
+</script>
+</head>
+<body>
+<script src="/ui/menu.js"></script>
+<div id="main">
+<h1>System</h1>
+<input type="hidden" name="token" id="token" value="~configToken~">
+<label>Uptime:</label><input type="text" value="~uptime~" disabled><br>
+<label>Czas systemowy:</label><input type="text" value="~time~" disabled><br>
+<label>Częstotliwość CPU:</label><input type="text" value="~cpufreq~" disabled><br>
+<label>Restart urządzenia:</label><input type="button" value="Wykonaj" onclick="reset();"><br>
+<label>Ustawienia fabryczne:</label><input type="button" value="Przywróć" onclick="restoreDefaults();"><br>
+<div id="result" style="color:red; display:none;"></div>
+</div>
+</body>
+</html>

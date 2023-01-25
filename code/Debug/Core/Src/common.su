@@ -1,0 +1,6 @@
+common.c:26:19:finalize_http_parsing	0	static
+common.c:21:6:prepare_http_parser	0	static
+common.c:109:9:parse_url	40	static
+common.c:60:12:parse_http_headers	32	static
+common.c:234:9:parse_stream_data_line	40	static
+common.c:205:7:get_station_url_from_file	592	static

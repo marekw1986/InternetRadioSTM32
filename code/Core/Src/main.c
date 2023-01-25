@@ -40,6 +40,7 @@
 #include "buttons.h"
 #include "lwip/apps/lwiperf.h"
 #include "lwip/apps/sntp.h"
+#include "http_ssi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -697,6 +698,7 @@ void StartMainTask(void const * argument)
   else {printf("SD f_mount OK\r\n");}
 
   httpd_init();
+  init_http_server();
 
   spiram_init();
   spiram_clear();

@@ -1,0 +1,102 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Ustawienia dostępu</title>
+<link rel="stylesheet" type="text/css" href="/ui/style.css">
+<link rel="stylesheet" type="text/css" href="/ui/menu.css">
+<script type="text/javascript">
+function test() {
+	var token = document.getElementById('token');
+	var oldpass = document.getElementById('oldpass');
+	var newpass = document.getElementById('newpass');
+	var result = document.getElementById('result');
+	
+	if (oldpass.value === '') {
+		oldpass.focus();
+		result.style.display = 'block';
+		result.innerHTML = "Musisz podać stare hasło.";
+		return false;		
+	}
+	if (newpass.value === '') {
+		newpass.focus();
+		result.style.display = 'block';
+		result.innerHTML = "Nowe hasło nie może być puste.";
+		return false;
+	}
+	if (newpass.value !== document.getElementById('repeat').value) {
+		newpass.focus();
+		result.style.display = 'block';
+		result.innerHTML = "Pola \"Nowe hasło\" różnią się zawartością.";
+		return false;
+	}
+
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+	   try {
+		  http_request = new ActiveXObject("Msxml2.XMLHTTP");	
+	   }
+	   catch (e) {
+			try {
+				http_request = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			catch (e){
+				result.innerHTML = "Wystąpił błąd przeglądarki. Wysłanie nowej konfiguracji do urządzenia nie jest możliwe.";
+				return false;
+			}	
+		}
+	}
+	http_request.onreadystatechange = function () {
+		if (http_request.readyState === 4 && http_request.status === 200 ) {
+            if (http_request.responseText === "invalid_token") {
+                result.style.display = 'block';
+                result.innerHTML = "Nieprawidłowy token operacji. Spróbuj ponownie załadować stronę.";
+            }
+			else if (http_request.responseText === "empty_old") {
+				oldpass.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Musisz podać stare hasło.";
+			}
+			else if (http_request.responseText === "wrong_old") {
+				oldpass.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Nieprawidłowe stare hasło.";			
+			}
+			else if (http_request.responseText === "invalid_new") {
+				oldpass.focus();
+				result.style.display = 'block';
+				result.innerHTML = "Nieprawidłowe nowe hasło.";					
+			}
+			else if (http_request.responseText === "ok") {
+				window.location.replace("/ui/reset.htm");
+			}
+			else {
+				result.style.display = 'block';
+				result.innerHTML = "Wystąpił błąd podczas zapisywaia nowego hasła";					
+			}
+		}
+	};
+	http_request.open("POST", "/ui/pass.cgi", true);
+	http_request.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+	var request ="token=" + token.value + "&oldpass=" + oldpass.value + "&newpass=" + newpass.value;
+	http_request.send(request);
+	return true;
+}
+</script>
+</head>
+<body>
+<script src="/ui/menu.js"></script>
+<div id="main">
+<h1>Ustawienia dostępu</h1>
+<input type="hidden" name="token" id="token" value="~configToken~">
+<label>Użytkownik:</label><input type="text" name="user" value="admin" disabled><br>
+<label>Stare hasło:</label><input type="password" name="oldpass" id="oldpass" value="" maxlength="32"><br>
+<label>Nowe hasło:</label><input type="password" name="newpass" id="newpass" value="" maxlength="32"><br>
+<label>Powtórz nowe hasło:</label><input type="password" name="repeat" id="repeat" value="" maxlength="32"><br><br>
+<input type="button" value="Zapisz" onclick="test()">
+<div id="result" style="color:red; display:none;"></div>
+</div>
+</body>
+</html>

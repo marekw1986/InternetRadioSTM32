@@ -1,0 +1,43 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Przekierowanie</title>
+<link rel="stylesheet" type="text/css" href="/ui/style.css">
+<link rel="stylesheet" type="text/css" href="/ui/menu.css">
+<script language="javascript" type="text/javascript">
+function reset() {
+    var token = document.getElementById("token");
+	var main = document.getElementById("main");
+	var http_request;
+	try {
+	   http_request = new XMLHttpRequest();
+	}
+	catch (e) {
+	   try {
+		  http_request = new ActiveXObject("Msxml2.XMLHTTP");	
+	   }
+	   catch (e) {
+			try {
+				http_request = new ActiveXObject("Microsoft.XMLHTTP");
+			}
+			catch (e){
+				main.innerHTML = "Wystąpił błąd przegl?darki, uniemożliwiający wykonanie zdalnego resetu urządzenia.";
+				return false;
+			}	
+		}
+	}
+	http_request.open("GET", "/ui/reset.cgi", true);
+	http_request.send();
+	main.innerHTML="Wykonuję reset urządzenia.";
+	setTimeout(function(){main.innerHTML+="<br>Przekierowuję na: http://~newip~/";window.location.replace("http://~newip~/?_=" + (new Date()).getTime());}, 3000);
+	return true;
+}        
+</script>
+</head>
+<body onload="setTimeout(reset, 500);">
+<script src="/ui/menu.js"></script>
+<div id="main">
+<input type="hidden" name="token" id="token" value="!--token--">
+</div>
+</body>
+</html>

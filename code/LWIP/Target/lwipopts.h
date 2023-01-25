@@ -105,8 +105,12 @@
 #define RECV_BUFSIZE_DEFAULT 2000000000
 /*----- Default Value for LWIP_HTTPD: 0 ---*/
 #define LWIP_HTTPD 1
+/*----- Default Value for LWIP_HTTPD_CGI: 0 ---*/
+#define LWIP_HTTPD_CGI 1
+/*----- Default Value for LWIP_HTTPD_SSI: 0 ---*/
+#define LWIP_HTTPD_SSI 1
 /*----- Value in opt.h for HTTPD_USE_CUSTOM_FSDATA: 0 -----*/
-#define HTTPD_USE_CUSTOM_FSDATA 1
+#define HTTPD_USE_CUSTOM_FSDATA 0
 /*----- Default Value for LWIP_SNTP: 0 ---*/
 #define LWIP_SNTP 1
 /*----- Default Value for SNTP_SERVER_DNS: 0 ---*/

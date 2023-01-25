@@ -50,7 +50,6 @@
  * if you need the additional precision.
  */
 extern void rtc_set_with_ntp_timstamp(uint32_t sec);
-
 #if !defined SNTP_SET_SYSTEM_TIME || defined __DOXYGEN__
 #define SNTP_SET_SYSTEM_TIME(sec)   rtc_set_with_ntp_timstamp(sec)//LWIP_UNUSED_ARG(sec)
 #endif
