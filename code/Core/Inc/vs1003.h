@@ -21,7 +21,13 @@
 extern "C" {
 #endif
 
-enum {VS_MSG_NEXT, VS_MSG_STOP};
+enum {VS_MSG_NEXT, VS_MSG_STOP, VS_MSG_PLAY_BY_ID};
+
+typedef struct {
+	uint8_t cmd;
+	uint16_t param;
+	uint8_t reserved;
+} vs1003cmd_t;
 
 //public functions
 void VS1003_begin(void);    
@@ -38,6 +44,7 @@ void VS1003_loadUserCode(const uint16_t* buf, size_t len);
 void VS1003_play_next(void);
 void VS1003_play_next_audio_file_from_directory (void);
 void VS1003_play_http_stream(const char* url);
+void VS1003_play_http_stream_by_id(uint16_t id);
 void VS1003_play_next_http_stream_from_list(void);
 void VS1003_play_file (char* url);
 void VS1003_play_dir (const char* url);
@@ -45,6 +52,7 @@ void VS1003_stop(void);
 void VS1003_setLoop(uint8_t val);
 uint8_t VS1003_getLoop(void);
 uint16_t VS1003_get_remaining_space_in_ringbuffer(void);
+void VS1003_send_cmd_thread_safe(uint8_t cmd, uint16_t param);
 
 
 #ifdef	__cplusplus

@@ -6,7 +6,7 @@
 <link rel="stylesheet" type="text/css" href="/ui/menu.css">
 <script type="text/javascript">
 function test() {
-	var token = document.getElementById('token');
+	var token = document.getElementById('token').innerHTML;
 	var url = document.getElementById('url');
 	var http_stream = document.getElementById('http_stream');
 	var file = document.getElementById('file');
@@ -147,7 +147,7 @@ function showDir(path) {
 }
 
 function play(path, type="file") {
-	var token = document.getElementById('token');
+	var token = document.getElementById('token').innerHTML;
 	var result = document.getElementById('result');
 	var playsrc = type;
 	
@@ -227,7 +227,7 @@ function nextBtnAction() {
 <script src="/ui/menu.js"></script>
 <div id="main">
 <h1>Odtwarzanie</h1>
-<input type="hidden" name="token" id="token" value="<!--#token-->">
+<div type="hidden" name="token" id="token"><!--#token--></div>
 <select name="files" id="files" size="15" ondblclick="fileAction()">
 </select><br>
 <input type="button" name="play_button" value="Odtwarzaj" onclick="playBtnAction()">

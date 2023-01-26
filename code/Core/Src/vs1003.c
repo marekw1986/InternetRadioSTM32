@@ -11,6 +11,7 @@
 #include <string.h>
 #include <tm.h>
 
+#include "cmsis_os.h"
 #include "vs1003.h"
 #include "stm32f1xx_hal.h"
 #include "lwip/tcp.h"
@@ -75,6 +76,8 @@ extern SPI_HandleTypeDef hspi1;
 #define SM_ADPCM            12
 #define SM_ADCPM_HP         13
 #define SM_LINE_IN          14
+
+extern osMessageQId vsQueueHandle;
 
 FIL fsrc;
 DIR vsdir;
@@ -270,6 +273,7 @@ void VS1003_handle(void) {
 	FRESULT fres;
 	unsigned int br;
 	uint8_t data[32];
+	vs1003cmd_t rcv;
 
 	switch(StreamState)
 	{
@@ -485,6 +489,23 @@ void VS1003_handle(void) {
         default:
         	StreamState = STREAM_HOME;
         	break;
+	}
+
+	if (xQueueReceive(vsQueueHandle, &rcv, 5) == pdTRUE) {
+		printf("Received command %d from queque\r\n", rcv.cmd);
+		switch(rcv.cmd) {
+			case VS_MSG_NEXT:
+				VS1003_play_next();
+				break;
+			case VS_MSG_STOP:
+				VS1003_stop();
+				break;
+			case VS_MSG_PLAY_BY_ID:
+				VS1003_play_http_stream_by_id(rcv.param);
+				break;
+			default:
+				break;
+		}
 	}
 }
 
@@ -754,6 +775,14 @@ void VS1003_play_http_stream(const char* url) {
   VS1003_startPlaying();
 }
 
+void VS1003_play_http_stream_by_id(uint16_t id) {
+	char* url = get_station_url_from_file(id, NULL, 0);
+	if (url) {
+		VS1003_stop();
+		VS1003_play_http_stream(url);
+	}
+}
+
 void VS1003_play_next_http_stream_from_list(void) {
     static int ind = 1;
 
@@ -835,4 +864,13 @@ void VS1003_setLoop(uint8_t val) {
 
 uint8_t VS1003_getLoop(void) {
   return loop_flag;
+}
+
+void VS1003_send_cmd_thread_safe(uint8_t cmd, uint16_t param) {
+	vs1003cmd_t command;
+	command.cmd = cmd;
+	command.param = param;
+	if (xQueueSend(vsQueueHandle, (void*)&command, portMAX_DELAY)) {
+		printf("Sending thread safe command to VS1003: %d\r\n", command.cmd);
+	}
 }

@@ -1,6 +1,0 @@
-syscall.c:18:5:ff_cre_syncobj	16	static
-syscall.c:42:5:ff_del_syncobj	8	static
-syscall.c:59:5:ff_req_grant	8	static
-syscall.c:81:6:ff_rel_grant	0	static
-syscall.c:100:7:ff_memalloc	0	static
-syscall.c:112:6:ff_memfree	0	static

@@ -60,18 +60,12 @@ const char *cgiPlayHandler(int iIndex, int iNumParams, char *pcParam[], char *pc
 				printf("play.cgi received URL: %s\r\n", pcValue[i]);
 				if (strlen(pcValue[i]) == 0) {
 					//Empty url, stop playing
-					to_send = VS_MSG_STOP;
-					if (xQueueSend(vsQueueHandle, (void*)&to_send, portMAX_DELAY)) {
-						printf("VS_MSG_STOP sent to queque\r\n");
-					}
+					VS1003_send_cmd_thread_safe(VS_MSG_STOP, 0);
 					return "/ui/player.shtml";
 				}
 				else {
 					if (strncmp(pcValue[i], "next", 5) == 0) {
-						to_send = VS_MSG_NEXT;
-						if (xQueueSend(vsQueueHandle, (void*)&to_send, portMAX_DELAY)) {
-							printf("VS_MSG_NEXT sent to queque\r\n");
-						}
+						VS1003_send_cmd_thread_safe(VS_MSG_NEXT, 0);
 						return "/ui/player.shtml";
 					}
 					else {
@@ -86,6 +80,10 @@ const char *cgiPlayHandler(int iIndex, int iNumParams, char *pcParam[], char *pc
 				else {
 					//Invalid src TODO
 				}
+			}
+			else if (strncmp(pcParam[i], "id", 3) == 0) {
+				uint16_t id = strtol(pcValue[i], NULL, 10);
+				VS1003_send_cmd_thread_safe(VS_MSG_PLAY_BY_ID, id);
 			}
 		}
 	}

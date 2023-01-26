@@ -55,7 +55,7 @@ function test() {
     var mac = document.getElementById('mac');
 	var ntp = document.getElementById('ntp');
 	var timezone = document.getElementById('timezone');		
-	var token = document.getElementById('token');
+	var token = document.getElementById('token').innerHTML;
 	var inputs = document.getElementsByClassName('ipInput');
 	for(i=0; i<inputs.length; i++) {
 		if(!ValidateIPaddress(inputs[i])) {
@@ -168,7 +168,7 @@ function test() {
 <div id="main">
 <h1>Konfiguracja</h1>
 
-<input type="hidden" name="token" id="token" value="<!--#token-->">
+<div type="hidden" name="token" id="token"><!--#token--></div>
 <label>DHCP:</label> 
 <input onClick="hide('dhcpNo', 'ipSettings')" value="yes" type="radio" name="dhcp" id="dhcpYes"~dhcpyes~>wł.
 <input onClick="hide('dhcpNo', 'ipSettings');" value="no" type="radio" name="dhcp" id="dhcpNo"~dhcpno~>wył.<br><br>

@@ -1,3 +1,0 @@
-fs.c:62:1:fs_open	16	static
-fs.c:101:1:fs_close	0	static
-fs.c:176:1:fs_bytes_left	0	static

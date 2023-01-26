@@ -153,7 +153,7 @@ int main(void)
 
   /* Create the queue(s) */
   /* definition and creation of vsQueue */
-  osMessageQDef(vsQueue, 16, uint8_t);
+  osMessageQDef(vsQueue, 16, uint32_t);
   vsQueueHandle = osMessageCreate(osMessageQ(vsQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
@@ -677,7 +677,6 @@ void StartMainTask(void const * argument)
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
   static FRESULT res;
-  uint8_t queque_rcv;
 
   printf("Starting default task\r\n");
 
@@ -717,19 +716,6 @@ void StartMainTask(void const * argument)
   for(;;)
   {
 	VS1003_handle();
-	if (xQueueReceive(vsQueueHandle, &queque_rcv, 5) == pdTRUE) {
-		printf("Received %d from queque\r\n", queque_rcv);
-		switch(queque_rcv) {
-			case VS_MSG_NEXT:
-				VS1003_play_next();
-				break;
-			case VS_MSG_STOP:
-				VS1003_stop();
-				break;
-			default:
-				break;
-		}
-	}
 	osDelay(1);
   }
   /* USER CODE END 5 */
