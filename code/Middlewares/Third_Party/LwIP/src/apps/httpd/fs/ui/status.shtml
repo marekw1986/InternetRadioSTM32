@@ -57,10 +57,10 @@ function restoreDefaults() {
 <script src="/ui/menu.js"></script>
 <div id="main">
 <h1>System</h1>
-<input type="hidden" name="token" id="token" value="~configToken~">
-<label>Uptime:</label><input type="text" value="~uptime~" disabled><br>
-<label>Czas systemowy:</label><input type="text" value="~time~" disabled><br>
-<label>Częstotliwość CPU:</label><input type="text" value="~cpufreq~" disabled><br>
+<input type="hidden" name="token" id="token" value="<!--#token-->">
+<label>Uptime:</label><input type="text" value="<!--#uptime-->" disabled><br>
+<label>Czas systemowy:</label><input type="text" value="<!--#time-->" disabled><br>
+<label>Częstotliwość CPU:</label><input type="text" value="<!--#cpufreq-->" disabled><br>
 <label>Restart urządzenia:</label><input type="button" value="Wykonaj" onclick="reset();"><br>
 <label>Ustawienia fabryczne:</label><input type="button" value="Przywróć" onclick="restoreDefaults();"><br>
 <div id="result" style="color:red; display:none;"></div>

@@ -503,6 +503,11 @@ void VS1003_handle(void) {
 			case VS_MSG_PLAY_BY_ID:
 				VS1003_play_http_stream_by_id(rcv.param);
 				break;
+			case VS_MSG_SET_VOL:
+				if ( (rcv.param >= 0) && (rcv.param <= 100) ) {
+					VS1003_setVolume(rcv.param);
+				}
+				break;
 			default:
 				break;
 		}

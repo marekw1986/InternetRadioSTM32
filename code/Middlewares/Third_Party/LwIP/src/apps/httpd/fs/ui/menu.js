@@ -6,7 +6,7 @@ document.write('\
 <li><a href="/ui/player.shtml">Odtwarzanie</a></li>\
 <li><a href="/ui/config.shtml">Konfiguracja</a></li>\
 <li><a href="/ui/pass.htm">Dostęp</a></li>\
-<li><a href="/ui/status.htm">Status</a></li>\
+<li><a href="/ui/status.shtml">Status</a></li>\
 </ul>\
 </div>\
 \

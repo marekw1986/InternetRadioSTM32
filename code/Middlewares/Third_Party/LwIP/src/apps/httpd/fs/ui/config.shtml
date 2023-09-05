@@ -168,7 +168,7 @@ function test() {
 <div id="main">
 <h1>Konfiguracja</h1>
 
-<div type="hidden" name="token" id="token"><!--#token--></div>
+<input type="hidden" name="token" id="token" value="<!--#token-->">
 <label>DHCP:</label> 
 <input onClick="hide('dhcpNo', 'ipSettings')" value="yes" type="radio" name="dhcp" id="dhcpYes"~dhcpyes~>wł.
 <input onClick="hide('dhcpNo', 'ipSettings');" value="no" type="radio" name="dhcp" id="dhcpNo"~dhcpno~>wył.<br><br>

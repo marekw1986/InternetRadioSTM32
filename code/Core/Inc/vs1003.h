@@ -21,7 +21,7 @@
 extern "C" {
 #endif
 
-enum {VS_MSG_NEXT, VS_MSG_STOP, VS_MSG_PLAY_BY_ID};
+enum {VS_MSG_NEXT, VS_MSG_STOP, VS_MSG_PLAY_BY_ID, VS_MSG_SET_VOL};
 
 typedef struct {
 	uint8_t cmd;

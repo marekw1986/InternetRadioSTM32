@@ -92,7 +92,7 @@ function clearFiles() {
 }
 
 function showDir(path) {
-    getJSON("/ui/dir.json?url="+path, function(err, data) {
+    getJSON("/ui/dir.cgi?url="+path, function(err, data) {
         var select = document.getElementById('files');
         if (err === null) {
 			clearFiles();
@@ -227,7 +227,7 @@ function nextBtnAction() {
 <script src="/ui/menu.js"></script>
 <div id="main">
 <h1>Odtwarzanie</h1>
-<div type="hidden" name="token" id="token"><!--#token--></div>
+<input type="hidden" name="token" id="token" value="<!--#token-->">
 <select name="files" id="files" size="15" ondblclick="fileAction()">
 </select><br>
 <input type="button" name="play_button" value="Odtwarzaj" onclick="playBtnAction()">

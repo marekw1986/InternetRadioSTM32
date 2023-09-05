@@ -85,7 +85,7 @@
  * inserted at once: the SSI handler function must then set 'next_tag_part'
  * which will be passed back to it in the next call. */
 #if !defined LWIP_HTTPD_SSI_MULTIPART || defined __DOXYGEN__
-#define LWIP_HTTPD_SSI_MULTIPART    0
+#define LWIP_HTTPD_SSI_MULTIPART    1
 #endif
 
 /* The maximum length of the string comprising the tag name */
@@ -225,7 +225,7 @@
 /** Set this to 0 to not send the SSI tag (default is on, so the tag will
  * be sent in the HTML page */
 #if !defined LWIP_HTTPD_SSI_INCLUDE_TAG || defined __DOXYGEN__
-#define LWIP_HTTPD_SSI_INCLUDE_TAG           1
+#define LWIP_HTTPD_SSI_INCLUDE_TAG           0
 #endif
 
 /** Set this to 1 to call tcp_abort when tcp_close fails with memory error.
