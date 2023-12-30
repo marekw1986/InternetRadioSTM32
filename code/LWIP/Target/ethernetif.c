@@ -80,6 +80,9 @@ osSemaphoreId s_xSemaphore = NULL;
 /* Global Ethernet handle */
 ETH_HandleTypeDef heth;
 
+/* Private function prototypes -----------------------------------------------*/
+static void ethernetif_input(void const * argument);
+
 /* USER CODE BEGIN 3 */
 
 /* USER CODE END 3 */
@@ -503,7 +506,7 @@ static struct pbuf * low_level_input(struct netif *netif)
  *
  * @param netif the lwip network interface structure for this ethernetif
  */
-void ethernetif_input(void const * argument)
+static void ethernetif_input(void const * argument)
 {
   struct pbuf *p;
   struct netif *netif = (struct netif *) argument;
