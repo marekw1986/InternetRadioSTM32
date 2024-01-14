@@ -20,6 +20,8 @@ typedef struct {
 	uint16_t port;
 } uri_t;
 
+typedef enum {false = 0, true} bool;
+
 typedef enum {HTTP_HEADER_ERROR = 0, HTTP_HEADER_IN_PROGRESS, HTTP_HEADER_OK, HTTP_HEADER_REDIRECTED} http_res_t;
 
 long map(long x, long in_min, long in_max, long out_min, long out_max);

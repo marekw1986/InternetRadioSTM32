@@ -46,6 +46,7 @@ extern "C" {
 void VS1003_init(void);
 void VS1003_handle (void);
 void VS1003_setVolume(uint8_t vol);
+uint8_t VS1003_getVolume(void);
 void VS1003_loadUserCode(const uint16_t* buf, size_t len);
 void VS1003_play_next(void);
 void VS1003_play_prev(void);
