@@ -9,8 +9,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 #include <tm.h>
 
+#include "vs1003_low_level.h"
 #include "cmsis_os.h"
 #include "vs1003.h"
 #include "stm32f1xx_hal.h"
@@ -22,84 +24,25 @@
 #include "spiram.h"
 #include "common.h"
 #include "main.h"
-
-#ifndef min
-#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#ifdef USE_LCD_UI
+#include "ui.h"
 #endif
 
-extern SPI_HandleTypeDef hspi1;
-
-#define vs1003_chunk_size 32
-
-/****************************************************************************/
-
-// VS1003 SCI Write Command byte is 0x02
-#define VS_WRITE_COMMAND 0x02
-
-// VS1003 SCI Read COmmand byte is 0x03
-#define VS_READ_COMMAND  0x03
-
-// SCI Registers
-
-#define SCI_MODE            0x0
-#define SCI_STATUS          0x1
-#define SCI_BASS            0x2
-#define SCI_CLOCKF          0x3
-#define SCI_DECODE_TIME     0x4
-#define SCI_AUDATA          0x5
-#define SCI_WRAM            0x6
-#define SCI_WRAMADDR        0x7
-#define SCI_HDAT0           0x8
-#define SCI_HDAT1           0x9
-#define SCI_AIADDR          0xa
-#define SCI_VOL             0xb
-#define SCI_AICTRL0         0xc
-#define SCI_AICTRL1         0xd
-#define SCI_AICTRL2         0xe
-#define SCI_AICTRL3         0xf
-#define SCI_num_registers   0xf
-
-// SCI_MODE bits
-
-#define SM_DIFF             0
-#define SM_LAYER12          1
-#define SM_RESET            2
-#define SM_OUTOFWAV         3
-#define SM_EARSPEAKER_LO    4
-#define SM_TESTS            5
-#define SM_STREAM           6
-#define SM_EARSPEAKER_HI    7
-#define SM_DACT             8
-#define SM_SDIORD           9
-#define SM_SDISHARE         10
-#define SM_SDINEW           11
-#define SM_ADPCM            12
-#define SM_ADCPM_HP         13
-#define SM_LINE_IN          14
+#define RECONNECT_LIMIT 3
 
 extern osMessageQId vsQueueHandle;
 
 FIL fsrc;
 DIR vsdir;
+static uint8_t ReconnectLimit = RECONNECT_LIMIT;
+static int current_stream_ind = 1;
 
 int sock;
 
 static uri_t uri;
 static uint8_t loop_flag = FALSE;
 static uint8_t dir_flag = FALSE;
-
-typedef enum {
-    STREAM_HOME = 0,
-    STREAM_HTTP_BEGIN,
-    STREAM_HTTP_PROCESS_HEADER,
-	STREAM_HTTP_FILL_BUFFER,
-    STREAM_HTTP_GET_DATA,
-	STREAM_FILE_FILL_BUFFER,
-    STREAM_FILE_GET_DATA,
-	STREAM_FILE_PLAY_REST,
-    STREAM_HTTP_CLOSE,
-    STREAM_HTTP_RECONNECT_WAIT
-} StreamState_t;
+static uint8_t last_volume = 0;
 
 static StreamState_t StreamState = STREAM_HOME;
 
@@ -112,157 +55,15 @@ typedef enum {
 
 static ReconnectStrategy_t ReconnectStrategy = DO_NOT_RECONNECT;
 
-typedef enum {
-    FEED_RET_NO_DATA_NEEDED = 0,
-    FEED_RET_OK,
-    FEED_RET_BUFFER_EMPTY
-} feed_ret_t;
-
-// Register names
-
-typedef enum {
-    reg_name_MODE = 0,
-    reg_name_STATUS,
-    reg_name_BASS,
-    reg_name_CLOCKF,
-    reg_name_DECODE_TIME,
-    reg_name_AUDATA,
-    reg_name_WRAM,
-    reg_name_WRAMADDR,
-    reg_name_HDAT0,
-    reg_name_HDAT1,
-    reg_name_AIADDR,
-    reg_name_VOL,
-    reg_name_AICTRL0,
-    reg_name_AICTRL1,
-    reg_name_AICTRL2,
-    reg_name_AICTRL3
-} register_names_t;
-
-const char * register_names[] =
-{
-  "MODE",
-  "STATUS",
-  "BASS",
-  "CLOCKF",
-  "DECODE_TIME",
-  "AUDATA",
-  "WRAM",
-  "WRAMADDR",
-  "HDAT0",
-  "HDAT1",
-  "AIADDR",
-  "VOL",
-  "AICTRL0",
-  "AICTRL1",
-  "AICTRL2",
-  "AICTRL3",
-};
-
 static void VS1003_startPlaying(void);
 static void VS1003_stopPlaying(void);
-static inline void await_data_request(void);
-static inline void control_mode_on(void);
-static inline void control_mode_off(void);
-static inline void data_mode_on(void);
-static inline void data_mode_off(void);
-static uint8_t VS1003_SPI_transfer(uint8_t outB);
 static uint8_t is_audio_file (char* name);
 static void VS1003_soft_stop (void);
 static void VS1003_handle_end_of_file (void);
-//static void dns_cbk(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
-static feed_ret_t VS1003_feed_from_buffer (void);;
 
-/****************************************************************************/
-
-uint16_t VS1003_read_register(uint8_t _reg) {
-  uint16_t result;
-  control_mode_on();
-  delay_us(1); // tXCSS
-  VS1003_SPI_transfer(VS_READ_COMMAND); // Read operation
-  VS1003_SPI_transfer(_reg); // Which register
-  result = VS1003_SPI_transfer(0xff) << 8; // read high byte
-  result |= VS1003_SPI_transfer(0xff); // read low byte
-  delay_us(1); // tXCSH
-  await_data_request();
-  control_mode_off();
-  return result;
+void VS1003_init(void) {
+    VS1003_low_level_init();
 }
-
-/****************************************************************************/
-
-void VS1003_write_register(uint8_t _reg,uint16_t _value) {
-  control_mode_on();
-  delay_us(1); // tXCSS
-  VS1003_SPI_transfer(VS_WRITE_COMMAND); // Write operation
-  VS1003_SPI_transfer(_reg); // Which register
-  VS1003_SPI_transfer(_value >> 8); // Send hi byte
-  VS1003_SPI_transfer(_value & 0xff); // Send lo byte
-  delay_us(1); // tXCSH
-  await_data_request();
-  control_mode_off();
-}
-
-/****************************************************************************/
-
-void VS1003_sdi_send_buffer(const uint8_t* data, int len) {
-  int chunk_length;
-  
-  data_mode_on();
-  while ( len ) {
-    await_data_request();
-    delay_us(3);
-    chunk_length = min(len, vs1003_chunk_size);
-    len -= chunk_length;
-    while ( chunk_length-- ) VS1003_SPI_transfer(*data++);
-  }
-  data_mode_off();
-}
-
-/****************************************************************************/
-
-void VS1003_sdi_send_chunk(const uint8_t* data, int len) {
-    if (len > 32) return;
-    data_mode_on();
-    await_data_request();
-    while ( len-- ) VS1003_SPI_transfer(*data++);
-    data_mode_off();
-}
-
-/****************************************************************************/
-
-void VS1003_sdi_send_zeroes(int len) {
-  int chunk_length;  
-  data_mode_on();
-  while ( len ) {
-    await_data_request();
-    chunk_length = min(len,vs1003_chunk_size);
-    len -= chunk_length;
-    while ( chunk_length-- ) VS1003_SPI_transfer(0);
-  }
-  data_mode_off();
-}
-
-/****************************************************************************/
-
-static feed_ret_t VS1003_feed_from_buffer (void) {
-    uint8_t data[32];
-
-    if (!HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin)) return FEED_RET_NO_DATA_NEEDED;
-    do {
-        if (spiram_get_num_of_bytes_in_ringbuffer() < 32) return FEED_RET_BUFFER_EMPTY;
-
-        uint16_t w = spiram_read_array_from_ringbuffer(data, 32);
-        if (w == 32) VS1003_sdi_send_chunk(data, 32);
-        asm("nop");
-        asm("nop");
-        asm("nop");
-    } while(HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin));
-
-    return FEED_RET_OK;
-}
-
-/****************************************************************************/
 
 void VS1003_handle(void) {
 	struct hostent* remoteHost;
@@ -348,7 +149,8 @@ void VS1003_handle(void) {
 				switch (http_result) {
 					case HTTP_HEADER_ERROR:
 						printf("Parsing headers error\r\n");
-						ReconnectStrategy = RECONNECT_WAIT_LONG;
+						prepare_http_parser();
+						ReconnectStrategy = RECONNECT_IMMEDIATELY;
 						StreamState = STREAM_HTTP_CLOSE;
 						break;
 					case HTTP_HEADER_OK:
@@ -466,11 +268,26 @@ void VS1003_handle(void) {
                     StreamState = STREAM_HOME;
                     break;
                 case RECONNECT_IMMEDIATELY:
+                	ReconnectLimit--;
+                    if (ReconnectLimit > 0) {
+                        StreamState = STREAM_HTTP_BEGIN;
+                    }
+                    else {
+                    	StreamState = STREAM_HOME;
+                    	printf("Reconnect limit reached\r\n");
+                    }
                     StreamState = STREAM_HTTP_BEGIN;
                     break;
                 case RECONNECT_WAIT_LONG:
                 case RECONNECT_WAIT_SHORT:
-                    StreamState = STREAM_HTTP_RECONNECT_WAIT;
+                	ReconnectLimit--;
+                    if (ReconnectLimit > 0) {
+                        StreamState = STREAM_HTTP_RECONNECT_WAIT;
+                    }
+                    else {
+                    	StreamState = STREAM_HOME;
+                    	printf("Reconnect limit reached\r\n");
+                    }
                     break;
                 default:
                     StreamState = STREAM_HOME;
@@ -514,97 +331,29 @@ void VS1003_handle(void) {
 	}
 }
 
-/****************************************************************************/
-
-void VS1003_begin(void) {
-  // Keep the chip in reset until we are ready
-  HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 0);
-
-  // The SCI and SDI will start deselected
-  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
-
-  // Boot VS1003
-  printf("Booting VS1003...\r\n");
-
-  osDelay(1);
-
-  // init SPI slow mode
-  //SPI configuration
-  //8 bit master mode, CKE=1, CKP=0
-  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_256); //281 kHz
-
-  // release from reset
-  HAL_GPIO_WritePin(VS_XRST_GPIO_Port, VS_XRST_Pin, 1);
-  
-  // Declick: Immediately switch analog off
-  VS1003_write_register(SCI_VOL,0xffff); // VOL
-
-  /* Declick: Slow sample rate for slow analog part startup */
-  VS1003_write_register(SCI_AUDATA,10);
-
-  osDelay(100);
-
-  /* Switch on the analog parts */
-  VS1003_write_register(SCI_VOL,0xfefe); // VOL
-  
-  printf("VS1003 still booting\r\n");
-
-  VS1003_write_register(SCI_AUDATA,44101); // 44.1kHz stereo
-
-  VS1003_write_register(SCI_VOL,0x2020); // VOL
-  
-  // soft reset
-  VS1003_write_register(SCI_MODE, (1 << SM_SDINEW) | (1 << SM_RESET) );
-  osDelay(1);
-  await_data_request();
-  VS1003_write_register(SCI_CLOCKF,0xF800); // Experimenting with highest clock settings
-  osDelay(1);
-  await_data_request();
-
-  // Now you can set high speed SPI clock
-  //SPI configuration
-  ////8 bit master mode, CKE=1, CKP=0
-  MODIFY_REG(hspi1.Instance->CR1, SPI_BAUDRATEPRESCALER_256, SPI_BAUDRATEPRESCALER_8);       //9 MHz
-
-  printf("VS1003 Set\r\n");
-  VS1003_printDetails();
-  printf("VS1003 OK\r\n");
-}
-
-/****************************************************************************/
-
 void VS1003_setVolume(uint8_t vol) {
-  uint16_t value = vol;
-  value <<= 8;
-  value |= vol;
+	if ((vol < 1) || (vol > 100)) return;
+	int x = log10f(vol)*1000;
+	uint8_t new_reg_value = map(x, 0, 2000, 0xFE, 0x00);//vol;
+	last_volume = vol;
+	uint16_t value = new_reg_value;
+	value <<= 8;
+	value |= new_reg_value;
 
-  VS1003_write_register(SCI_VOL,value); // VOL
+	VS1003_write_register(SCI_VOL,value); // VOL
+
+	#ifdef USE_LCD_UI
+	ui_update_volume();
+	#endif
 }
 
-/****************************************************************************/
+uint8_t VS1003_getVolume(void) {
+    return last_volume;
+}
 
 void VS1003_playChunk(const uint8_t* data, size_t len) {
   VS1003_sdi_send_buffer(data,len);
 }
-
-/****************************************************************************/
-
-void VS1003_print_byte_register(uint8_t reg) {
-  char extra_tab = strlen(register_names[reg]) < 5 ? '\t' : 0;
-  printf("%02x %s\t%c = 0x%02x\r\n", reg, register_names[reg], extra_tab, VS1003_read_register(reg));
-}
-
-/****************************************************************************/
-
-void VS1003_printDetails(void) {
-  printf("VS1003 Configuration:\r\n");
-  int i = 0;
-  while ( i <= SCI_num_registers )
-    VS1003_print_byte_register(i++);
-}
-
-/****************************************************************************/
 
 void VS1003_loadUserCode(const uint16_t* buf, size_t len) {
   while (len) {
@@ -635,7 +384,7 @@ void VS1003_play_next(void) {
                 VS1003_play_next_audio_file_from_directory();
             }
             break;
-        case STREAM_HOME:	//TEMP
+        case STREAM_HOME:
         case STREAM_HTTP_FILL_BUFFER:
         case STREAM_HTTP_GET_DATA:
             VS1003_stop();
@@ -646,27 +395,24 @@ void VS1003_play_next(void) {
     }
 }
 
-
-static inline void await_data_request(void) {
-while ( !HAL_GPIO_ReadPin(VS_DREQ_GPIO_Port, VS_DREQ_Pin) );
-}
-
-static inline void control_mode_on(void) {
-HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
-HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 0);
-}
-
-static inline void control_mode_off(void) {
-  HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-}
-
-static inline void data_mode_on(void) {
-HAL_GPIO_WritePin(VS_XCS_GPIO_Port, VS_XCS_Pin, 1);
-HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 0);
-}
-
-static inline void data_mode_off(void) {
-  HAL_GPIO_WritePin(VS_XDCS_GPIO_Port, VS_XDCS_Pin, 1);
+void VS1003_play_prev(void) {
+    switch (StreamState) {
+        case STREAM_FILE_FILL_BUFFER:
+        case STREAM_FILE_GET_DATA:
+            if (dir_flag) {
+                //TODO: This need to be implemented
+                //VS1003_play_prev_audio_file_from_directory();
+            }
+            break;
+        case STREAM_HOME:
+        case STREAM_HTTP_FILL_BUFFER:
+        case STREAM_HTTP_GET_DATA:
+            VS1003_stop();
+            VS1003_play_prev_http_stream_from_list();
+            break;
+        default:
+            break;
+    }
 }
 
 static void VS1003_startPlaying(void) {
@@ -677,13 +423,6 @@ static void VS1003_stopPlaying(void) {
   spiram_clear_ringbuffer();
   VS1003_sdi_send_zeroes(2048);
   spiram_clear_ringbuffer();
-}
-
-static uint8_t VS1003_SPI_transfer(uint8_t outB) {
-uint8_t answer;
-
-HAL_SPI_TransmitReceive(&hspi1, &outB, &answer, 1, HAL_MAX_DELAY);
-return answer;
 }
 
 static uint8_t is_audio_file (char* name) {
@@ -765,19 +504,19 @@ void VS1003_play_next_audio_file_from_directory (void) {
 
 /*Always call VS1003_stop() before calling that function*/
 void VS1003_play_http_stream(const char* url) {
-  if (StreamState != STREAM_HOME) return;
-
-  if (parse_url(url, strlen(url), &uri)) {
-	  printf("URL %s parsed sucessfully\r\n", url);
-	  StreamState = STREAM_HTTP_CLOSE;
-	  ReconnectStrategy = RECONNECT_WAIT_SHORT;
-  }
-  else {
-	  printf("URL parsing error\r\n");
-	  StreamState = STREAM_HOME;
-	  ReconnectStrategy = DO_NOT_RECONNECT;
-  }
-  VS1003_startPlaying();
+    if ((StreamState == STREAM_HOME) || (StreamState == STREAM_HTTP_RECONNECT_WAIT)) {
+        if (parse_url(url, strlen(url), &uri)) {
+            StreamState = STREAM_HTTP_BEGIN;
+            ReconnectStrategy = RECONNECT_WAIT_SHORT;
+            ReconnectLimit = RECONNECT_LIMIT;
+        }
+        else {
+            StreamState = STREAM_HOME;
+            ReconnectStrategy = DO_NOT_RECONNECT;
+        }
+//        mediainfo_type_set(MEDIA_TYPE_STREAM);
+        VS1003_startPlaying();
+    }
 }
 
 void VS1003_play_http_stream_by_id(uint16_t id) {
@@ -785,24 +524,31 @@ void VS1003_play_http_stream_by_id(uint16_t id) {
 	if (url) {
 		VS1003_stop();
 		VS1003_play_http_stream(url);
+		current_stream_ind = id;
 	}
 }
 
 void VS1003_play_next_http_stream_from_list(void) {
-    static int ind = 1;
-
-    char* url = get_station_url_from_file(ind, NULL, 0);
+    char* url = get_station_url_from_file(current_stream_ind, NULL, 0);
     if (url == NULL) {
         //Function returned NULL, there is no stream with such ind
         //Try again from the beginning
-        ind = 1;
-        url = get_station_url_from_file(ind, NULL, 0);
+    	current_stream_ind = 1;
+        url = get_station_url_from_file(current_stream_ind, NULL, 0);
         if (url == NULL) return;
     }
-    else {
-        ind++;
-    }
     VS1003_stop();
+//    mediainfo_title_set(name);
+    VS1003_play_http_stream(url);
+}
+
+void VS1003_play_prev_http_stream_from_list(void) {
+    current_stream_ind--;
+    if (current_stream_ind < 1) { current_stream_ind = get_max_stream_id(); }
+    char* url = get_station_url_from_file(current_stream_ind, NULL, 0);
+    if (url == NULL) return;
+    VS1003_stop();
+//    mediainfo_title_set(name);
     VS1003_play_http_stream(url);
 }
 
@@ -861,6 +607,7 @@ void VS1003_stop(void) {
 		  break;
   }
   VS1003_stopPlaying();
+  StreamState = STREAM_HOME;
 }
 
 void VS1003_setLoop(uint8_t val) {
@@ -869,6 +616,10 @@ void VS1003_setLoop(uint8_t val) {
 
 uint8_t VS1003_getLoop(void) {
   return loop_flag;
+}
+
+StreamState_t VS1003_getStreamState(void) {
+    return StreamState;
 }
 
 void VS1003_send_cmd_thread_safe(uint8_t cmd, uint16_t param) {

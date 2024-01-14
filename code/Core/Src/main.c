@@ -41,6 +41,7 @@
 #include "lwip/apps/lwiperf.h"
 #include "lwip/apps/sntp.h"
 #include "http_ssi.h"
+#include "httpd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -710,7 +711,7 @@ void StartMainTask(void const * argument)
   sntp_setservername(0, "pool.ntp.org");
   sntp_init();
 
-  VS1003_begin();
+  VS1003_init();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
 //  VS1003_play_dir("0:/");
@@ -736,8 +737,8 @@ void StartIoTask(void const * argument)
 {
   /* USER CODE BEGIN StartIoTask */
   static button_t next_btn;
-  time_t oldTimestamp = 0;
-  time_t newTimestamp;
+//  time_t oldTimestamp = 0;
+//  time_t newTimestamp;
 
   printf("I/O task starting\r\n");
   button_init(&next_btn, NEXT_BTN_GPIO_Port, NEXT_BTN_Pin, next_callback, NULL);

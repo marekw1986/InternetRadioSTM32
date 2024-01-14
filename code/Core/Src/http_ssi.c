@@ -29,12 +29,12 @@ char parent[256];
 
 const char *cgiPlayHandler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]);
 const char *cgiDirHandler(int iIndex, int iNumparams, char *pcParam[], char *pcValue[]);
-uint16_t ssi_handler (int iIndex, char *pcInsert, int iInsertLen, u16_t current_tag_part, u16_t *next_tag_part);
+uint16_t ssi_handler (int iIndex, char *pcInsert, int iInsertLen);
 
 char const* TAGCHAR[] = {"token", "parent", "dirs", "files", "uptime", "time", "cpufreq"};
 char const** TAGS=TAGCHAR;
 
-uint16_t ssi_handler (int iIndex, char *pcInsert, int iInsertLen, u16_t current_tag_part, u16_t *next_tag_part) {
+uint16_t ssi_handler (int iIndex, char *pcInsert, int iInsertLen) {
 	u16_t respLen = 0;
 
 	switch(iIndex) {
@@ -99,7 +99,7 @@ uint16_t ssi_handler (int iIndex, char *pcInsert, int iInsertLen, u16_t current_
 		break;
 
 		case 6: //cpufreq
-			respLen = snprintf(pcInsert, iInsertLen-1, "%d", HAL_RCC_GetHCLKFreq());
+			respLen = snprintf(pcInsert, iInsertLen-1, "%lu", HAL_RCC_GetHCLKFreq());
 		break;
 
 		default:
@@ -140,7 +140,7 @@ const char *cgiDirHandler(int iIndex, int iNumparams, char *pcParam[], char *pcV
 const char *cgiPlayHandler(int iIndex, int iNumParams, char *pcParam[], char *pcValue[]) {
 	enum {PLAY_SRC_STREAM, PLAY_SRC_FILE, PLAY_SRC_DIR};
 
-	static uint8_t to_send = 0;
+//	static uint8_t to_send = 0;
 	//int playSrc = PLAY_SRC_STREAM;	//Stream is default
 
 	if (iIndex == 0) {

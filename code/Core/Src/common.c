@@ -15,8 +15,14 @@
 char working_buffer[512];
 uint16_t http_code = 0;
 
+static uint16_t max_stream_id = 0;
+
 static http_res_t finalize_http_parsing(uri_t* uri);
 static void analyze_line(char* line, uint16_t len, uri_t* uri);
+
+long map(long x, long in_min, long in_max, long out_min, long out_max) {
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 void prepare_http_parser(void) {
     http_code = 0;
@@ -94,10 +100,10 @@ http_res_t parse_http_headers(char* str, size_t len, uri_t* uri) {
     }
     else {
         //First line already parsed, parsing next lines
-        analyze_line(working_buffer, sizeof(working_buffer)-1, uri);
+        analyze_line(working_buffer, sizeof(working_buffer), uri);
     }
 
-    strncpy(working_buffer, next_line, sizeof(working_buffer)-1);
+    strncpy(working_buffer, next_line, sizeof(working_buffer));
     if (memcmp(working_buffer, "\r\n", 2) == 0) {
         return finalize_http_parsing(uri);
     }
@@ -189,14 +195,43 @@ uint8_t parse_url (const char* url, size_t len, uri_t* uri) {
 		}
 	}
 
-    if (serverlen > (sizeof(uri->server)-1)) { return 0; }
+    if (serverlen > (sizeof(uri->server))) { return 0; }
 	memcpy(uri->server, serverbegin, serverlen);
     uri->server[serverlen] = '\0';
 	filelen = strlen(rest);
-    if (filelen > (sizeof(uri->file)+1)) { return 0; }
+    if (filelen > (sizeof(uri->file))) { return 0; }
 	memcpy(uri->file, rest, filelen);
     uri->file[filelen] = '\0';
 	return 1;
+}
+
+void initialize_stream_list(void) {
+	FIL file;
+	FRESULT res;
+	uint16_t number = 0;
+
+	res = f_open(&file, "1:/radio.txt", FA_READ);
+    if (res != FR_OK) {
+    	printf("Can't open radio.txt file from SD, res: %d. Attempting USB.\r\n", res);
+		res = f_open(&file, "0:/radio.txt", FA_READ);
+		if (res != FR_OK) {
+			printf("Can't open radio.txt file from USB, res: %d\r\n", res);
+			return;
+		}
+    }
+    while (f_gets(working_buffer, sizeof(working_buffer)-1, &file) != NULL) {
+        if (working_buffer[strlen(working_buffer)-1] == '\n') {
+            working_buffer[strlen(working_buffer)-1] = '\0';
+        }
+        int ret = parse_stream_data_line(working_buffer, strlen(working_buffer), NULL, 0, NULL, 0);
+        if (ret > number) {
+            number = ret;
+        }
+    }
+    if (number > 0) {
+        max_stream_id = number;
+    }
+    f_close(&file);
 }
 
 /*WARNING: To preserve precious memory on that hardware this function uses the same working buffer as
