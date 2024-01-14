@@ -711,6 +711,7 @@ void StartMainTask(void const * argument)
   sntp_setservername(0, "pool.ntp.org");
   sntp_init();
 
+  initialize_stream_list();
   VS1003_init();
   VS1003_setVolume(0x00);
   VS1003_setLoop(TRUE);
