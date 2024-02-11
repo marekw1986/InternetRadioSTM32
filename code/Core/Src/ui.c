@@ -7,6 +7,7 @@
 #include "buttons.h"
 //#include "rotary.h"
 #include "common.h"
+#include "stream_list.h"
 #include "main.h"
 
 #define BACKLIGHT_DURATION 10000
@@ -117,8 +118,9 @@ static void ui_draw_scrollable_list(void) {
     char buf[24];
 	char* url = NULL;
     lcd_cls();
+    char working_buffer[512];
 	for (int line=0; line<LCD_ROWS; line++) {
-		url = get_station_url_from_file(stream_at_first_line+line, name, sizeof(name));
+		url = get_station_url_from_file(stream_at_first_line+line, working_buffer, sizeof(working_buffer), name, sizeof(name));
 		if (url != NULL) {
             int bytes_in_buffer;
             if (line == selected_line) {

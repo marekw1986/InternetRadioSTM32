@@ -23,6 +23,8 @@
 #include "ff.h"
 #include "spiram.h"
 #include "common.h"
+#include "http_header_parser.h"
+#include "stream_list.h"
 #include "main.h"
 #ifdef USE_LCD_UI
 #include "ui.h"
@@ -137,7 +139,7 @@ void VS1003_handle(void) {
 			ret = lwip_send(sock, (void*)"\r\nConnection: keep-alive\r\n\r\n", 28, 0);
 			printf("Fifth ret: %d\r\n", ret);
             printf("Sending headers\r\n");
-            prepare_http_parser();
+            http_prepare_parser();
 
             StreamState = STREAM_HTTP_PROCESS_HEADER;
 			break;
@@ -145,22 +147,24 @@ void VS1003_handle(void) {
         case STREAM_HTTP_PROCESS_HEADER:;
 			w = lwip_recv(sock, data, 32, 0);
 			if (w > 0) {
-				http_res_t http_result = parse_http_headers((char*)data, w, &uri);
+				http_res_t http_result = http_parse_headers((char*)data, w, &uri);
 				switch (http_result) {
 					case HTTP_HEADER_ERROR:
-						printf("Parsing headers error\r\n");
-						prepare_http_parser();
-						ReconnectStrategy = RECONNECT_IMMEDIATELY;
+						printf("Parsing headers error, code: %d\r\n", http_get_err_code());
+						http_release_parser();
+						ReconnectStrategy = DO_NOT_RECONNECT;
 						StreamState = STREAM_HTTP_CLOSE;
 						break;
 					case HTTP_HEADER_OK:
 						printf("It is 200 OK\r\n");
+						http_release_parser();
 						timer = millis();
 						StreamState = STREAM_HTTP_FILL_BUFFER;     //STREAM_HTTP_GET_DATA
 						VS1003_startPlaying();
 						break;
 					case HTTP_HEADER_REDIRECTED:
 						printf("Stream redirected\r\n");
+						http_release_parser();
 						ReconnectStrategy = RECONNECT_IMMEDIATELY;
 						StreamState = STREAM_HTTP_CLOSE;
 						break;
@@ -520,7 +524,8 @@ void VS1003_play_http_stream(const char* url) {
 }
 
 void VS1003_play_http_stream_by_id(uint16_t id) {
-	char* url = get_station_url_from_file(id, NULL, 0);
+	char working_buffer[512];
+	char* url = get_station_url_from_file(id, working_buffer, sizeof(working_buffer), NULL, 0);
 	if (url) {
 		VS1003_stop();
 		VS1003_play_http_stream(url);
@@ -529,12 +534,13 @@ void VS1003_play_http_stream_by_id(uint16_t id) {
 }
 
 void VS1003_play_next_http_stream_from_list(void) {
-    char* url = get_station_url_from_file(current_stream_ind, NULL, 0);
+	char working_buffer[512];
+	char* url = get_station_url_from_file(current_stream_ind, working_buffer, sizeof(working_buffer), NULL, 0);
     if (url == NULL) {
         //Function returned NULL, there is no stream with such ind
         //Try again from the beginning
     	current_stream_ind = 1;
-        url = get_station_url_from_file(current_stream_ind, NULL, 0);
+    	url = get_station_url_from_file(current_stream_ind, working_buffer, sizeof(working_buffer), NULL, 0);
         if (url == NULL) return;
     }
     VS1003_stop();
@@ -543,9 +549,11 @@ void VS1003_play_next_http_stream_from_list(void) {
 }
 
 void VS1003_play_prev_http_stream_from_list(void) {
+	char working_buffer[512];
+
     current_stream_ind--;
     if (current_stream_ind < 1) { current_stream_ind = get_max_stream_id(); }
-    char* url = get_station_url_from_file(current_stream_ind, NULL, 0);
+    char* url = get_station_url_from_file(current_stream_ind, working_buffer, sizeof(working_buffer), NULL, 0);
     if (url == NULL) return;
     VS1003_stop();
 //    mediainfo_title_set(name);
