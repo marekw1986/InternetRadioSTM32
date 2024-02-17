@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdint.h>
+#include "FreeRTOS.h"
 
 #include "http_header_parser.h"
 
@@ -15,7 +16,7 @@ bool http_prepare_parser(void) {
     if (working_buffer) { return false; }
     http_code = 0;
     error_code = HTTP_ERR_UNKNOWN;
-    working_buffer = (char*)malloc(WORKING_BUFFER_SIZE*sizeof(char));
+    working_buffer = (char*)pvPortMalloc(WORKING_BUFFER_SIZE*sizeof(char));
     if (working_buffer == NULL) return false;
     memset(working_buffer, 0x00, WORKING_BUFFER_SIZE);
     return true;
@@ -23,7 +24,7 @@ bool http_prepare_parser(void) {
 
 void http_release_parser(void) {
     if (working_buffer) {
-        free(working_buffer);
+        vPortFree(working_buffer);
         working_buffer = NULL;
         http_code = 0;
         error_code = HTTP_ERR_UNKNOWN;
