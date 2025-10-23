@@ -49,10 +49,8 @@
  * Define SNTP_SET_SYSTEM_TIME_US(sec, us) to set the time in microseconds instead of this one
  * if you need the additional precision.
  */
-extern void set_rtc_with_ntp_timstamp(uint32_t sec);
-
 #if !defined SNTP_SET_SYSTEM_TIME || defined __DOXYGEN__
-#define SNTP_SET_SYSTEM_TIME(sec)   set_rtc_with_ntp_timstamp(sec)//LWIP_UNUSED_ARG(sec)
+#define SNTP_SET_SYSTEM_TIME(sec)   LWIP_UNUSED_ARG(sec)
 #endif
 
 /** The maximum number of SNTP servers that can be set */

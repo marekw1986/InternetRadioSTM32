@@ -80,6 +80,7 @@ void Error_Handler(void);
 #define VS_DREQ_GPIO_Port GPIOB
 #define SD_CS_Pin GPIO_PIN_9
 #define SD_CS_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 #define SD_SPI_HANDLE hspi3
 /* USER CODE END Private defines */

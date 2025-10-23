@@ -61,7 +61,7 @@
 #include "lwip/dhcp.h"
 
 #include <string.h>
-#include <tm.h>
+#include <time.h>
 
 #if LWIP_UDP
 
