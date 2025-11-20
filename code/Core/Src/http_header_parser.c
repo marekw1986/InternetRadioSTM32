@@ -86,7 +86,11 @@ http_res_t http_parse_headers(char* str, size_t len, uri_t* uri) {
         return HTTP_HEADER_ERROR;
     }
     
-    strncat(working_buffer, str, len);
+    size_t used = strlen(working_buffer);
+	size_t remain = WORKING_BUFFER_SIZE - used - 1;
+	if (remain < len) len = remain;
+	memcpy(working_buffer + used, str, len);
+	working_buffer[used + len] = '\0';
     
     tok = strstr(working_buffer, "\r\n");
     if (!tok) {
